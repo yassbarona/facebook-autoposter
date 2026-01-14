@@ -1,0 +1,12 @@
+[Unit]
+Description=Facebook Poster Timer: %i
+Requires=fbposter@%i.service
+
+[Timer]
+# Run daily at 08:00 (customize per job)
+OnCalendar=*-*-* 08:00:00
+Persistent=true
+AccuracySec=1min
+
+[Install]
+WantedBy=timers.target

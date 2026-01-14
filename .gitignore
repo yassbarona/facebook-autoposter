@@ -1,0 +1,64 @@
+# Secrets and credentials
+config/.env
+config/config.yaml
+*.key
+*.pem
+
+# User data (contains personal Facebook data)
+data/groups.json
+data/texts.json
+data/jobs.json
+data/logs/
+data/*.db
+data/*.backup
+
+# Profiles (contain user-specific data and login sessions)
+profiles/
+
+# Chrome profile (contains Facebook login session)
+chrome-profile/
+
+# Backups
+*.backup
+*.bak
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+.env/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.temp

@@ -1,0 +1,32 @@
+[Unit]
+Description=Facebook Auto-Poster Job: %i
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/workspace/fbposter
+Environment="PATH=/opt/automation-venv/bin:/usr/local/bin:/usr/bin"
+
+# Run specific job by ID
+ExecStart=/opt/automation-venv/bin/fbposter run %i
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=fbposter-%i
+
+# Security hardening
+PrivateTmp=yes
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/workspace/fbposter/data
+
+# Restart on failure
+Restart=on-failure
+RestartSec=60
+
+[Install]
+WantedBy=multi-user.target

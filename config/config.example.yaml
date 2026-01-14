@@ -1,0 +1,33 @@
+# Facebook Auto-Poster Configuration
+
+browser:
+  headless: true
+  window_size: '1920x1080'
+  user_agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36
+  chrome_binary: /usr/bin/google-chrome
+
+facebook:
+  login_timeout: 30
+  page_load_timeout: 20
+  post_delay_min: 8
+  post_delay_max: 15
+  max_posts_per_hour: 20
+
+logging:
+  level: INFO
+  file: data/logs/fbposter.log
+  max_bytes: 10485760
+  backup_count: 5
+
+api:
+  webhook_url: https://automation.vivastours.com/webhook/fb_logs
+  webhook_enabled: true
+  webhook_timeout: 10
+
+data:
+  groups_file: data/groups.json
+  texts_file: data/texts.json
+  jobs_file: data/jobs.json
+  db_file: data/logs/posts_history.db
+  backup_enabled: true
+  backup_count: 7
