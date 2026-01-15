@@ -346,7 +346,7 @@ async def delete_job(request: Request, job_id: str, _=Depends(require_auth)):
 
 @app.post("/jobs/{job_id}/run")
 async def run_job(request: Request, job_id: str, _=Depends(require_auth)):
-    """Run a job"""
+    """Run a job in background"""
     current_profile = get_current_profile()
     has_session = has_chrome_session(current_profile)
 
@@ -361,24 +361,21 @@ async def run_job(request: Request, job_id: str, _=Depends(require_auth)):
         cmd.append("--no-headless")
 
     try:
-        # Run the job (this will block until complete)
-        result = subprocess.run(
+        # Run the job in background (non-blocking)
+        subprocess.Popen(
             cmd,
-            capture_output=True,
-            text=True,
-            timeout=1800  # 30 minute timeout
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True  # Detach from parent process
         )
 
-        if result.returncode == 0:
-            return RedirectResponse(url="/jobs?success=Job+completed+successfully", status_code=302)
+        if has_session:
+            return RedirectResponse(url="/jobs?success=Job+started+in+background.+Check+Logs+for+progress.", status_code=302)
         else:
-            error_msg = result.stderr[:100] if result.stderr else "Unknown error"
-            return RedirectResponse(url=f"/jobs?error=Job+failed:+{error_msg}", status_code=302)
+            return RedirectResponse(url="/jobs?success=Job+started.+Browser+opened+for+login.+Complete+login+to+continue.", status_code=302)
 
-    except subprocess.TimeoutExpired:
-        return RedirectResponse(url="/jobs?error=Job+timed+out+after+30+minutes", status_code=302)
     except Exception as e:
-        return RedirectResponse(url=f"/jobs?error=Failed+to+run+job:+{str(e)[:50]}", status_code=302)
+        return RedirectResponse(url=f"/jobs?error=Failed+to+start+job:+{str(e)[:50]}", status_code=302)
 
 
 # ============== Logs Routes ==============
