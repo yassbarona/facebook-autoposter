@@ -18,6 +18,8 @@ from ..data.storage import DataStore, LogStore
 from ..data.models import Group, Text, Job
 import shutil
 import json
+import subprocess
+import threading
 
 # Create FastAPI app
 app = FastAPI(
@@ -64,6 +66,25 @@ def get_stores(profile: Optional[str] = None):
     if profile:
         set_profile(profile)
     return DataStore(), LogStore()
+
+
+def has_chrome_session(profile: Optional[str] = None) -> bool:
+    """Check if profile has a Chrome session (logged into Facebook)"""
+    if profile:
+        chrome_dir = get_profile_dir(profile) / "chrome-profile"
+    else:
+        # Default profile uses root chrome-profile
+        from pathlib import Path
+        package_dir = Path(__file__).parent.parent.parent
+        chrome_dir = package_dir / "chrome-profile"
+
+    # Check if chrome profile exists and has data
+    if not chrome_dir.exists():
+        return False
+
+    # Check for Default directory (Chrome's main profile data)
+    default_dir = chrome_dir / "Default"
+    return default_dir.exists()
 
 
 # ============== Auth Routes ==============
@@ -127,6 +148,7 @@ async def dashboard(request: Request, profile: Optional[str] = None):
         "request": request,
         "profile": current_profile,
         "profiles": list_profiles(),
+        "has_session": has_chrome_session(current_profile),
         "stats": {
             "total_groups": len(groups),
             "active_groups": len([g for g in groups if g.active]),
@@ -266,10 +288,12 @@ async def jobs_page(request: Request, _=Depends(require_auth)):
         job.text_name = text_map.get(job.text_id, "Unknown")
         job.cities = job.group_filters.get("cities", []) if job.group_filters else []
 
+    current_profile = get_current_profile()
     return templates.TemplateResponse("jobs.html", {
         "request": request,
-        "profile": get_current_profile(),
+        "profile": current_profile,
         "profiles": list_profiles(),
+        "has_session": has_chrome_session(current_profile),
         "jobs": jobs,
         "texts": texts,
         "cities": cities
@@ -318,6 +342,43 @@ async def delete_job(request: Request, job_id: str, _=Depends(require_auth)):
     data_store, _ = get_stores()
     data_store.remove_job(job_id)
     return RedirectResponse(url="/jobs", status_code=302)
+
+
+@app.post("/jobs/{job_id}/run")
+async def run_job(request: Request, job_id: str, _=Depends(require_auth)):
+    """Run a job"""
+    current_profile = get_current_profile()
+    has_session = has_chrome_session(current_profile)
+
+    # Build the command
+    cmd = ["fbposter"]
+    if current_profile:
+        cmd.extend(["--profile", current_profile])
+    cmd.extend(["run", job_id])
+
+    # If no Chrome session, run with visible browser for login
+    if not has_session:
+        cmd.append("--no-headless")
+
+    try:
+        # Run the job (this will block until complete)
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=1800  # 30 minute timeout
+        )
+
+        if result.returncode == 0:
+            return RedirectResponse(url="/jobs?success=Job+completed+successfully", status_code=302)
+        else:
+            error_msg = result.stderr[:100] if result.stderr else "Unknown error"
+            return RedirectResponse(url=f"/jobs?error=Job+failed:+{error_msg}", status_code=302)
+
+    except subprocess.TimeoutExpired:
+        return RedirectResponse(url="/jobs?error=Job+timed+out+after+30+minutes", status_code=302)
+    except Exception as e:
+        return RedirectResponse(url=f"/jobs?error=Failed+to+run+job:+{str(e)[:50]}", status_code=302)
 
 
 # ============== Logs Routes ==============

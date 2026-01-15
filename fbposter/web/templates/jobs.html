@@ -6,7 +6,12 @@
 <div class="mb-8 flex justify-between items-center">
     <div>
         <h1 class="text-3xl font-bold text-gray-800">Posting Jobs</h1>
-        <p class="text-gray-600">Configure which texts get posted to which groups</p>
+        <p class="text-gray-600">
+            Configure which texts get posted to which groups
+            {% if not has_session %}
+            <span class="ml-2 px-2 py-1 bg-yellow-100 text-yellow-800 text-xs rounded">Browser will open for login</span>
+            {% endif %}
+        </p>
     </div>
     <button
         onclick="document.getElementById('addModal').classList.remove('hidden')"
@@ -15,6 +20,18 @@
         + Create Job
     </button>
 </div>
+
+<!-- Success/Error Messages -->
+{% if request.query_params.get('success') %}
+<div class="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-6">
+    {{ request.query_params.get('success').replace('+', ' ') }}
+</div>
+{% endif %}
+{% if request.query_params.get('error') %}
+<div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-6">
+    {{ request.query_params.get('error').replace('+', ' ') }}
+</div>
+{% endif %}
 
 <!-- Jobs Table -->
 <div class="bg-white rounded-lg shadow overflow-hidden">
@@ -59,8 +76,13 @@
                     </span>
                 </td>
                 <td class="px-6 py-4 text-right space-x-2">
+                    <form method="post" action="/jobs/{{ job.id }}/run" class="inline" onsubmit="this.querySelector('button').disabled=true; this.querySelector('button').innerText='Running...';">
+                        <button type="submit" class="text-green-600 hover:text-green-800 font-medium">
+                            Run
+                        </button>
+                    </form>
                     <form method="post" action="/jobs/{{ job.id }}/toggle" class="inline">
-                        <button type="submit" class="text-blue-600 hover:text-blue-800">
+                        <button type="submit" class="text-blue-600 hover:text-blue-800 ml-3">
                             {{ 'Disable' if job.enabled else 'Enable' }}
                         </button>
                     </form>
