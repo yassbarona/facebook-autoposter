@@ -260,10 +260,11 @@ async def jobs_page(request: Request, _=Depends(require_auth)):
     # Get cities
     cities = sorted(set(g.city for g in groups))
 
-    # Enrich jobs with text names
+    # Enrich jobs with text names and cities list
     text_map = {t.id: t.name for t in texts}
     for job in jobs:
         job.text_name = text_map.get(job.text_id, "Unknown")
+        job.cities = job.group_filters.get("cities", []) if job.group_filters else []
 
     return templates.TemplateResponse("jobs.html", {
         "request": request,
@@ -289,7 +290,10 @@ async def add_job(
     # Parse cities (comma-separated or empty for all)
     city_list = [c.strip() for c in cities.split(",") if c.strip()] if cities else []
 
-    job = Job(name=name, text_id=text_id, cities=city_list)
+    # Build group_filters dict
+    group_filters = {"cities": city_list} if city_list else {}
+
+    job = Job(name=name, text_id=text_id, group_filters=group_filters, schedule="manual")
     data_store.add_job(job)
 
     return RedirectResponse(url="/jobs", status_code=302)
