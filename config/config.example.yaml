@@ -31,3 +31,10 @@ data:
   db_file: data/logs/posts_history.db
   backup_enabled: true
   backup_count: 7
+
+# Telegram Bot Notifications
+telegram:
+  enabled: false              # Set to true after configuring bot token
+  notify_on_success: true     # Send message when job completes successfully
+  notify_on_failure: true     # Send message when job has failures
+  notify_on_start: false      # Send message when job starts

@@ -106,6 +106,12 @@ class Config:
                 'backup_enabled': True,
                 'backup_count': 7,
             },
+            'telegram': {
+                'enabled': False,
+                'notify_on_success': True,
+                'notify_on_failure': True,
+                'notify_on_start': False,
+            },
         }
 
     def get(self, key: str, default: Any = None) -> Any:

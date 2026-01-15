@@ -118,7 +118,7 @@ def version():
 
 
 # Import command modules to register them (must be after cli is defined)
-from . import groups, texts, jobs, migrate, profiles
+from . import groups, texts, jobs, migrate, profiles, telegram
 
 
 if __name__ == '__main__':

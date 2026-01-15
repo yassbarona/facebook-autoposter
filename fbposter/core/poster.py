@@ -18,7 +18,8 @@ from tenacity import (
 from ..data.models import Group, Text, Job, PostLog
 from ..data.storage import LogStore
 from ..utils.logger import get_logger
-from ..utils.config import get_config
+from ..utils.config import get_config, get_current_profile
+from ..utils.telegram import notify_job_start, notify_job_complete, notify_error
 from .browser import Browser, BrowserError, ElementNotFoundError, AuthenticationError
 
 logger = get_logger("poster")
@@ -260,20 +261,27 @@ class FacebookPoster:
 def run_job(job: Job, browser: Browser, data_store, dry_run: bool = False) -> Dict:
     """Execute a posting job"""
     logger.info(f"Running job: {job.name}")
+    profile = get_current_profile()
 
     # Get text template
     text = data_store.get_text(job.text_id)
     if not text:
         logger.error(f"Text template not found: {job.text_id}")
+        notify_error(f"Text template not found: {job.text_id}", job.name, profile)
         return {"success": False, "error": "Text template not found"}
 
     # Get groups for this job
     groups = data_store.get_groups_for_job(job)
     if not groups:
         logger.error(f"No groups found for job: {job.name}")
+        notify_error(f"No groups found for job", job.name, profile)
         return {"success": False, "error": "No groups found"}
 
     logger.info(f"Found {len(groups)} groups to post to")
+
+    # Send Telegram notification for job start
+    if not dry_run:
+        notify_job_start(job.name, len(groups), profile)
 
     # Verify login
     browser.navigate_to("https://www.facebook.com")
@@ -309,6 +317,7 @@ def run_job(job: Job, browser: Browser, data_store, dry_run: bool = False) -> Di
         except AuthenticationError as e:
             logger.error(f"Authentication failed: {e}")
             results["errors"].append(f"Authentication error: {e}")
+            notify_error(f"Authentication failed: {e}", job.name, profile)
             break
 
         except Exception as e:
@@ -321,4 +330,9 @@ def run_job(job: Job, browser: Browser, data_store, dry_run: bool = False) -> Di
     data_store.update_job(job)
 
     logger.info(f"Job completed: {results['successful']} successful, {results['failed']} failed")
+
+    # Send Telegram notification for job completion
+    if not dry_run:
+        notify_job_complete(job.name, results, profile)
+
     return results

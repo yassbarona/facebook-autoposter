@@ -10,6 +10,7 @@ A production-ready command-line tool for automating posts to Facebook groups. Bu
 
 - **Headless Browser Automation** - Posts to Facebook groups using Selenium with Chrome
 - **Multi-Account Profiles** - Manage separate Facebook accounts with isolated data and login sessions
+- **Telegram Notifications** - Get notified on job completion, failures, and status updates
 - **Flexible Job System** - Map any text template to any combination of city groups
 - **Smart Rate Limiting** - Configurable delays and hourly limits to avoid detection
 - **Automatic Retries** - Exponential backoff for transient failures
@@ -28,6 +29,7 @@ A production-ready command-line tool for automating posts to Facebook groups. Bu
   - [Managing Jobs](#managing-jobs)
   - [Running Jobs](#running-jobs)
   - [Using Profiles](#using-profiles)
+- [Telegram Notifications](#telegram-notifications)
 - [Scheduling with systemd](#scheduling-with-systemd)
 - [Configuration](#configuration)
 - [Troubleshooting](#troubleshooting)
@@ -223,6 +225,57 @@ Each profile has its own:
 - Chrome profile (login session)
 - Posting logs
 
+## Telegram Notifications
+
+Get notified on Telegram when jobs complete, fail, or encounter errors.
+
+### Setup
+
+1. **Create a bot** - Message [@BotFather](https://t.me/BotFather) on Telegram, send `/newbot`, and copy the token
+
+2. **Get your Chat ID** - Message [@userinfobot](https://t.me/userinfobot) to get your chat ID
+
+3. **Configure** - Add to `config/.env`:
+```bash
+TELEGRAM_BOT_TOKEN=your_bot_token
+TELEGRAM_CHAT_ID=your_chat_id
+```
+
+4. **Enable** - Add to `config/config.yaml`:
+```yaml
+telegram:
+  enabled: true
+  notify_on_success: true
+  notify_on_failure: true
+  notify_on_start: false
+```
+
+5. **Start the bot** - Message your bot on Telegram (press Start)
+
+6. **Test** - Run:
+```bash
+fbposter telegram test
+```
+
+### Telegram Commands
+
+```bash
+# Test bot connection
+fbposter telegram test
+
+# Send status report to Telegram
+fbposter telegram status
+
+# Show configuration info
+fbposter telegram info
+```
+
+### What You'll Receive
+
+- **Job Completion** - Success/failure counts, success rate, error summaries
+- **Errors** - Authentication failures, critical errors
+- **Status Reports** - On-demand system status via `fbposter telegram status`
+
 ## Scheduling with systemd
 
 ### Create a Timer
@@ -377,6 +430,8 @@ facebook-autoposter/
 | `fbposter logs` | View recent posting logs |
 | `fbposter profiles list` | List available profiles |
 | `fbposter -p <name> <cmd>` | Run command with specific profile |
+| `fbposter telegram test` | Test Telegram bot connection |
+| `fbposter telegram status` | Send status to Telegram |
 
 ## License
 
