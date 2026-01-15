@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+
+{% block title %}Jobs - Facebook Auto-Poster{% endblock %}
+
+{% block content %}
+<div class="mb-8 flex justify-between items-center">
+    <div>
+        <h1 class="text-3xl font-bold text-gray-800">Posting Jobs</h1>
+        <p class="text-gray-600">Configure which texts get posted to which groups</p>
+    </div>
+    <div class="text-gray-500 text-sm">
+        <p>Use CLI to create jobs:</p>
+        <code class="bg-gray-200 px-2 py-1 rounded">fbposter jobs create</code>
+    </div>
+</div>
+
+<!-- Jobs Table -->
+<div class="bg-white rounded-lg shadow overflow-hidden">
+    {% if jobs %}
+    <table class="w-full">
+        <thead class="bg-gray-50">
+            <tr>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Job Name</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Text Template</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cities</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+            </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-200">
+            {% for job in jobs %}
+            <tr class="hover:bg-gray-50">
+                <td class="px-6 py-4">
+                    <span class="font-medium text-gray-900">{{ job.name }}</span>
+                    <p class="text-gray-500 text-xs">{{ job.id[:8] }}...</p>
+                </td>
+                <td class="px-6 py-4">
+                    <span class="text-gray-700">{{ job.text_name or 'Unknown' }}</span>
+                </td>
+                <td class="px-6 py-4">
+                    {% if job.cities %}
+                    <div class="flex flex-wrap gap-1">
+                        {% for city in job.cities[:3] %}
+                        <span class="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded">{{ city }}</span>
+                        {% endfor %}
+                        {% if job.cities|length > 3 %}
+                        <span class="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded">+{{ job.cities|length - 3 }} more</span>
+                        {% endif %}
+                    </div>
+                    {% else %}
+                    <span class="text-gray-500">All cities</span>
+                    {% endif %}
+                </td>
+                <td class="px-6 py-4">
+                    <span class="px-2 py-1 text-xs rounded {% if job.enabled %}bg-green-100 text-green-800{% else %}bg-red-100 text-red-800{% endif %}">
+                        {{ 'Enabled' if job.enabled else 'Disabled' }}
+                    </span>
+                </td>
+                <td class="px-6 py-4 text-right space-x-2">
+                    <form method="post" action="/jobs/{{ job.id }}/toggle" class="inline">
+                        <button type="submit" class="text-blue-600 hover:text-blue-800">
+                            {{ 'Disable' if job.enabled else 'Enable' }}
+                        </button>
+                    </form>
+                    <form method="post" action="/jobs/{{ job.id }}/delete" class="inline" onsubmit="return confirm('Delete this job?')">
+                        <button type="submit" class="text-red-600 hover:text-red-800 ml-3">Delete</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="p-8 text-center">
+        <svg class="w-16 h-16 mx-auto text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+        </svg>
+        <p class="text-gray-500 mb-4">No jobs configured yet.</p>
+        <p class="text-gray-600">Use the CLI to create your first job:</p>
+        <code class="bg-gray-200 px-3 py-2 rounded inline-block mt-2">fbposter jobs create</code>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Run Job Instructions -->
+<div class="bg-blue-50 border border-blue-200 rounded-lg p-6 mt-6">
+    <h3 class="text-lg font-bold text-blue-800 mb-2">Running Jobs</h3>
+    <p class="text-blue-700 mb-4">Jobs are run from the command line or via systemd timers:</p>
+    <div class="space-y-2">
+        <div>
+            <p class="text-blue-600 text-sm">Run a job manually:</p>
+            <code class="bg-white px-3 py-1 rounded text-blue-800">fbposter run &lt;job-id&gt;</code>
+        </div>
+        <div>
+            <p class="text-blue-600 text-sm">Dry run (no actual posting):</p>
+            <code class="bg-white px-3 py-1 rounded text-blue-800">fbposter run &lt;job-id&gt; --dry-run</code>
+        </div>
+        <div>
+            <p class="text-blue-600 text-sm">Run with visible browser:</p>
+            <code class="bg-white px-3 py-1 rounded text-blue-800">fbposter run &lt;job-id&gt; --no-headless</code>
+        </div>
+    </div>
+</div>
+
+<!-- Available Texts and Cities for Reference -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+    <div class="bg-white rounded-lg shadow p-6">
+        <h3 class="font-bold text-gray-800 mb-4">Available Text Templates</h3>
+        {% if texts %}
+        <ul class="space-y-2">
+            {% for text in texts %}
+            <li class="flex items-center justify-between p-2 bg-gray-50 rounded">
+                <span>{{ text.name }}</span>
+                <span class="text-gray-500 text-xs">{{ text.id[:8] }}...</span>
+            </li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <p class="text-gray-500">No templates. <a href="/texts" class="text-blue-600 hover:underline">Create one first</a></p>
+        {% endif %}
+    </div>
+
+    <div class="bg-white rounded-lg shadow p-6">
+        <h3 class="font-bold text-gray-800 mb-4">Available Cities</h3>
+        {% if cities %}
+        <div class="flex flex-wrap gap-2">
+            {% for city in cities %}
+            <span class="px-3 py-1 bg-blue-100 text-blue-800 rounded">{{ city }}</span>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-gray-500">No cities. <a href="/groups" class="text-blue-600 hover:underline">Add groups first</a></p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Facebook Auto-Poster{% endblock %}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <style>
+        [x-cloak] { display: none !important; }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <!-- Navigation -->
+    <nav class="bg-blue-600 text-white shadow-lg">
+        <div class="max-w-7xl mx-auto px-4">
+            <div class="flex justify-between items-center h-16">
+                <div class="flex items-center space-x-8">
+                    <a href="/" class="font-bold text-xl">FB Auto-Poster</a>
+                    <div class="hidden md:flex space-x-4">
+                        <a href="/" class="px-3 py-2 rounded hover:bg-blue-700 {% if request.url.path == '/' %}bg-blue-700{% endif %}">Dashboard</a>
+                        <a href="/groups" class="px-3 py-2 rounded hover:bg-blue-700 {% if '/groups' in request.url.path %}bg-blue-700{% endif %}">Groups</a>
+                        <a href="/texts" class="px-3 py-2 rounded hover:bg-blue-700 {% if '/texts' in request.url.path %}bg-blue-700{% endif %}">Texts</a>
+                        <a href="/jobs" class="px-3 py-2 rounded hover:bg-blue-700 {% if '/jobs' in request.url.path %}bg-blue-700{% endif %}">Jobs</a>
+                        <a href="/logs" class="px-3 py-2 rounded hover:bg-blue-700 {% if '/logs' in request.url.path %}bg-blue-700{% endif %}">Logs</a>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <!-- Profile Selector -->
+                    <form method="get" action="/" class="flex items-center">
+                        <select name="profile" onchange="this.form.submit()" class="bg-blue-700 text-white px-3 py-1 rounded border border-blue-500 focus:outline-none">
+                            <option value="" {% if not profile %}selected{% endif %}>Default Profile</option>
+                            {% for p in profiles %}
+                            <option value="{{ p }}" {% if profile == p %}selected{% endif %}>{{ p }}</option>
+                            {% endfor %}
+                        </select>
+                    </form>
+                    <a href="/logout" class="px-3 py-2 rounded hover:bg-blue-700">Logout</a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Mobile Navigation -->
+    <div class="md:hidden bg-blue-500 text-white">
+        <div class="flex justify-around py-2">
+            <a href="/" class="px-3 py-1">Dashboard</a>
+            <a href="/groups" class="px-3 py-1">Groups</a>
+            <a href="/texts" class="px-3 py-1">Texts</a>
+            <a href="/jobs" class="px-3 py-1">Jobs</a>
+            <a href="/logs" class="px-3 py-1">Logs</a>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto px-4 py-8">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-gray-800 text-gray-400 py-4 mt-8">
+        <div class="max-w-7xl mx-auto px-4 text-center">
+            <p>Facebook Auto-Poster Dashboard &copy; 2025</p>
+        </div>
+    </footer>
+
+    {% block scripts %}{% endblock %}
+</body>
+</html>

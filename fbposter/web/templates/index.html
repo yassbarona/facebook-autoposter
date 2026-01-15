@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Facebook Auto-Poster{% endblock %}
+
+{% block content %}
+<div class="mb-8">
+    <h1 class="text-3xl font-bold text-gray-800">Dashboard</h1>
+    <p class="text-gray-600">Profile: <span class="font-medium">{{ profile or 'Default' }}</span></p>
+</div>
+
+<!-- Stats Cards -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+    <!-- Groups Card -->
+    <div class="bg-white rounded-lg shadow p-6">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-gray-500 text-sm">Total Groups</p>
+                <p class="text-3xl font-bold text-gray-800">{{ stats.total_groups }}</p>
+            </div>
+            <div class="bg-blue-100 p-3 rounded-full">
+                <svg class="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
+                </svg>
+            </div>
+        </div>
+        <p class="text-green-600 text-sm mt-2">{{ stats.active_groups }} active</p>
+    </div>
+
+    <!-- Texts Card -->
+    <div class="bg-white rounded-lg shadow p-6">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-gray-500 text-sm">Text Templates</p>
+                <p class="text-3xl font-bold text-gray-800">{{ stats.texts }}</p>
+            </div>
+            <div class="bg-green-100 p-3 rounded-full">
+                <svg class="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                </svg>
+            </div>
+        </div>
+    </div>
+
+    <!-- Jobs Card -->
+    <div class="bg-white rounded-lg shadow p-6">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-gray-500 text-sm">Posting Jobs</p>
+                <p class="text-3xl font-bold text-gray-800">{{ stats.jobs }}</p>
+            </div>
+            <div class="bg-purple-100 p-3 rounded-full">
+                <svg class="w-8 h-8 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+            </div>
+        </div>
+        <p class="text-green-600 text-sm mt-2">{{ stats.enabled_jobs }} enabled</p>
+    </div>
+
+    <!-- Posts Card -->
+    <div class="bg-white rounded-lg shadow p-6">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-gray-500 text-sm">Posts (7 days)</p>
+                <p class="text-3xl font-bold text-gray-800">{{ stats.posts_7d }}</p>
+            </div>
+            <div class="bg-orange-100 p-3 rounded-full">
+                <svg class="w-8 h-8 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
+                </svg>
+            </div>
+        </div>
+        <p class="{% if stats.success_rate >= 80 %}text-green-600{% elif stats.success_rate >= 50 %}text-yellow-600{% else %}text-red-600{% endif %} text-sm mt-2">
+            {{ "%.1f"|format(stats.success_rate) }}% success rate
+        </p>
+    </div>
+</div>
+
+<!-- Cities Overview -->
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+    <div class="bg-white rounded-lg shadow p-6">
+        <h2 class="text-xl font-bold text-gray-800 mb-4">Groups by City</h2>
+        {% if cities %}
+        <div class="space-y-3">
+            {% for city, data in cities.items() %}
+            <div class="flex items-center justify-between p-3 bg-gray-50 rounded">
+                <span class="font-medium">{{ city }}</span>
+                <div class="flex items-center space-x-4">
+                    <span class="text-gray-600">{{ data.total }} groups</span>
+                    <span class="text-green-600 text-sm">{{ data.active }} active</span>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-gray-500">No groups configured yet.</p>
+        <a href="/groups" class="text-blue-600 hover:underline">Add your first group</a>
+        {% endif %}
+    </div>
+
+    <!-- Recent Jobs -->
+    <div class="bg-white rounded-lg shadow p-6">
+        <h2 class="text-xl font-bold text-gray-800 mb-4">Recent Jobs</h2>
+        {% if recent_jobs %}
+        <div class="space-y-3">
+            {% for job in recent_jobs %}
+            <div class="flex items-center justify-between p-3 bg-gray-50 rounded">
+                <div>
+                    <span class="font-medium">{{ job.name }}</span>
+                    <p class="text-gray-500 text-sm">{{ job.cities|join(', ') if job.cities else 'All cities' }}</p>
+                </div>
+                <span class="px-2 py-1 text-xs rounded {% if job.enabled %}bg-green-100 text-green-800{% else %}bg-gray-200 text-gray-600{% endif %}">
+                    {{ 'Enabled' if job.enabled else 'Disabled' }}
+                </span>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-gray-500">No jobs configured yet.</p>
+        <a href="/jobs" class="text-blue-600 hover:underline">Create your first job</a>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Quick Actions -->
+<div class="bg-white rounded-lg shadow p-6">
+    <h2 class="text-xl font-bold text-gray-800 mb-4">Quick Actions</h2>
+    <div class="flex flex-wrap gap-4">
+        <a href="/groups" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition">
+            Manage Groups
+        </a>
+        <a href="/texts" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition">
+            Manage Texts
+        </a>
+        <a href="/jobs" class="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700 transition">
+            Manage Jobs
+        </a>
+        <a href="/logs" class="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700 transition">
+            View Logs
+        </a>
+    </div>
+</div>
+{% endblock %}

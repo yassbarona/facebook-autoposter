@@ -11,6 +11,7 @@ A production-ready command-line tool for automating posts to Facebook groups. Bu
 - **Headless Browser Automation** - Posts to Facebook groups using Selenium with Chrome
 - **Multi-Account Profiles** - Manage separate Facebook accounts with isolated data and login sessions
 - **Telegram Notifications** - Get notified on job completion, failures, and status updates
+- **Web Dashboard** - Visual management interface with authentication
 - **Flexible Job System** - Map any text template to any combination of city groups
 - **Smart Rate Limiting** - Configurable delays and hourly limits to avoid detection
 - **Automatic Retries** - Exponential backoff for transient failures
@@ -30,6 +31,7 @@ A production-ready command-line tool for automating posts to Facebook groups. Bu
   - [Running Jobs](#running-jobs)
   - [Using Profiles](#using-profiles)
 - [Telegram Notifications](#telegram-notifications)
+- [Web Dashboard](#web-dashboard)
 - [Scheduling with systemd](#scheduling-with-systemd)
 - [Configuration](#configuration)
 - [Troubleshooting](#troubleshooting)
@@ -276,6 +278,63 @@ fbposter telegram info
 - **Errors** - Authentication failures, critical errors
 - **Status Reports** - On-demand system status via `fbposter telegram status`
 
+## Web Dashboard
+
+A visual web interface for managing your Facebook Auto-Poster. Built with FastAPI and Tailwind CSS.
+
+### Starting the Dashboard
+
+```bash
+# Start the dashboard
+fbposter web start
+
+# Start on a specific port
+fbposter web start --port 8080
+
+# Start with auto-reload (for development)
+fbposter web start --reload
+
+# Show dashboard configuration info
+fbposter web info
+```
+
+### Access the Dashboard
+
+1. Start the server: `fbposter web start`
+2. Open in browser: `http://localhost:8000`
+3. Login with password (default: `admin`)
+
+### Dashboard Features
+
+- **Dashboard Home** - Overview of groups, texts, jobs, and posting statistics
+- **Groups Management** - View, add, enable/disable, and delete Facebook groups
+- **Text Templates** - View and manage post templates
+- **Jobs Management** - View job configurations, enable/disable jobs
+- **Logs Viewer** - Browse recent posting history with status filtering
+- **Profile Switching** - Switch between profiles from the navigation bar
+
+### Configuration
+
+Set environment variables to customize the dashboard:
+
+```bash
+# config/.env
+DASHBOARD_PASSWORD=your_secure_password
+DASHBOARD_SECRET_KEY=your_random_secret_key
+```
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `DASHBOARD_PASSWORD` | Login password | `admin` |
+| `DASHBOARD_SECRET_KEY` | Session encryption key | (insecure default) |
+
+### Security Notes
+
+- Always change the default password in production
+- Set a strong `DASHBOARD_SECRET_KEY` for session security
+- The dashboard binds to `0.0.0.0` by default - use a firewall or reverse proxy in production
+- Consider using HTTPS via a reverse proxy like nginx or Traefik
+
 ## Scheduling with systemd
 
 ### Create a Timer
@@ -394,16 +453,22 @@ facebook-autoposter/
 │   │   ├── groups.py  # Group management
 │   │   ├── texts.py   # Text templates
 │   │   ├── jobs.py    # Job management
-│   │   └── profiles.py # Profile management
+│   │   ├── profiles.py # Profile management
+│   │   ├── telegram.py # Telegram commands
+│   │   └── web.py     # Web dashboard commands
 │   ├── core/
 │   │   ├── browser.py # Selenium automation
 │   │   └── poster.py  # Facebook posting logic
 │   ├── data/
 │   │   ├── models.py  # Data models
 │   │   └── storage.py # JSON/SQLite storage
-│   └── utils/
-│       ├── config.py  # Configuration
-│       └── logger.py  # Logging
+│   ├── utils/
+│   │   ├── config.py  # Configuration
+│   │   ├── telegram.py # Telegram notifications
+│   │   └── logger.py  # Logging
+│   └── web/           # Web dashboard
+│       ├── app.py     # FastAPI application
+│       └── templates/ # HTML templates
 ├── config/
 │   ├── config.yaml        # Main configuration
 │   ├── config.example.yaml
@@ -432,6 +497,8 @@ facebook-autoposter/
 | `fbposter -p <name> <cmd>` | Run command with specific profile |
 | `fbposter telegram test` | Test Telegram bot connection |
 | `fbposter telegram status` | Send status to Telegram |
+| `fbposter web start` | Start the web dashboard |
+| `fbposter web info` | Show dashboard configuration |
 
 ## License
 
