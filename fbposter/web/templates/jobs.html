@@ -8,10 +8,12 @@
         <h1 class="text-3xl font-bold text-gray-800">Posting Jobs</h1>
         <p class="text-gray-600">Configure which texts get posted to which groups</p>
     </div>
-    <div class="text-gray-500 text-sm">
-        <p>Use CLI to create jobs:</p>
-        <code class="bg-gray-200 px-2 py-1 rounded">fbposter jobs create</code>
-    </div>
+    <button
+        onclick="document.getElementById('addModal').classList.remove('hidden')"
+        class="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700 transition"
+    >
+        + Create Job
+    </button>
 </div>
 
 <!-- Jobs Table -->
@@ -76,8 +78,12 @@
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
         </svg>
         <p class="text-gray-500 mb-4">No jobs configured yet.</p>
-        <p class="text-gray-600">Use the CLI to create your first job:</p>
-        <code class="bg-gray-200 px-3 py-2 rounded inline-block mt-2">fbposter jobs create</code>
+        <button
+            onclick="document.getElementById('addModal').classList.remove('hidden')"
+            class="text-purple-600 hover:underline"
+        >
+            Create your first job
+        </button>
     </div>
     {% endif %}
 </div>
@@ -102,35 +108,114 @@
     </div>
 </div>
 
-<!-- Available Texts and Cities for Reference -->
-<div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
-    <div class="bg-white rounded-lg shadow p-6">
-        <h3 class="font-bold text-gray-800 mb-4">Available Text Templates</h3>
-        {% if texts %}
-        <ul class="space-y-2">
-            {% for text in texts %}
-            <li class="flex items-center justify-between p-2 bg-gray-50 rounded">
-                <span>{{ text.name }}</span>
-                <span class="text-gray-500 text-xs">{{ text.id[:8] }}...</span>
-            </li>
-            {% endfor %}
-        </ul>
-        {% else %}
-        <p class="text-gray-500">No templates. <a href="/texts" class="text-blue-600 hover:underline">Create one first</a></p>
-        {% endif %}
-    </div>
-
-    <div class="bg-white rounded-lg shadow p-6">
-        <h3 class="font-bold text-gray-800 mb-4">Available Cities</h3>
-        {% if cities %}
-        <div class="flex flex-wrap gap-2">
-            {% for city in cities %}
-            <span class="px-3 py-1 bg-blue-100 text-blue-800 rounded">{{ city }}</span>
-            {% endfor %}
+<!-- Add Job Modal -->
+<div id="addModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div class="bg-white rounded-lg shadow-xl w-full max-w-lg mx-4">
+        <div class="p-6">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-bold text-gray-800">Create New Job</h2>
+                <button onclick="document.getElementById('addModal').classList.add('hidden')" class="text-gray-500 hover:text-gray-700">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+            <form method="post" action="/jobs/add">
+                <div class="mb-4">
+                    <label class="block text-gray-700 font-medium mb-2">Job Name *</label>
+                    <input
+                        type="text"
+                        name="name"
+                        required
+                        class="w-full px-4 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-purple-500"
+                        placeholder="e.g., Morning Recruitment Post"
+                    >
+                </div>
+                <div class="mb-4">
+                    <label class="block text-gray-700 font-medium mb-2">Text Template *</label>
+                    {% if texts %}
+                    <select
+                        name="text_id"
+                        required
+                        class="w-full px-4 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    >
+                        <option value="">-- Select a template --</option>
+                        {% for text in texts %}
+                        <option value="{{ text.id }}">{{ text.name }}</option>
+                        {% endfor %}
+                    </select>
+                    {% else %}
+                    <p class="text-red-600 text-sm">No text templates available. <a href="/texts" class="underline">Create one first</a>.</p>
+                    {% endif %}
+                </div>
+                <div class="mb-6">
+                    <label class="block text-gray-700 font-medium mb-2">Target Cities</label>
+                    {% if cities %}
+                    <div class="mb-2">
+                        <p class="text-gray-500 text-sm mb-2">Click to select cities (leave empty for all cities):</p>
+                        <div class="flex flex-wrap gap-2" id="citySelector">
+                            {% for city in cities %}
+                            <label class="cursor-pointer">
+                                <input type="checkbox" class="hidden city-checkbox" value="{{ city }}">
+                                <span class="px-3 py-1 bg-gray-100 text-gray-700 rounded hover:bg-purple-100 transition city-tag">{{ city }}</span>
+                            </label>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+                    <input
+                        type="hidden"
+                        name="cities"
+                        id="citiesInput"
+                        value=""
+                    >
+                    <p class="text-gray-500 text-xs mt-2">Selected cities will appear here. Leave empty to post to all cities.</p>
+                </div>
+                <div class="flex justify-end space-x-3">
+                    <button
+                        type="button"
+                        onclick="document.getElementById('addModal').classList.add('hidden')"
+                        class="px-4 py-2 border border-gray-300 rounded hover:bg-gray-100 transition"
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        type="submit"
+                        class="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 transition"
+                        {% if not texts %}disabled{% endif %}
+                    >
+                        Create Job
+                    </button>
+                </div>
+            </form>
         </div>
-        {% else %}
-        <p class="text-gray-500">No cities. <a href="/groups" class="text-blue-600 hover:underline">Add groups first</a></p>
-        {% endif %}
     </div>
 </div>
+
+<script>
+// City selection logic
+document.querySelectorAll('.city-checkbox').forEach(checkbox => {
+    checkbox.addEventListener('change', updateCities);
+});
+
+document.querySelectorAll('.city-tag').forEach(tag => {
+    tag.addEventListener('click', function() {
+        const checkbox = this.previousElementSibling;
+        checkbox.checked = !checkbox.checked;
+        this.classList.toggle('bg-purple-500');
+        this.classList.toggle('text-white');
+        this.classList.toggle('bg-gray-100');
+        this.classList.toggle('text-gray-700');
+        updateCities();
+    });
+});
+
+function updateCities() {
+    const selected = [];
+    document.querySelectorAll('.city-checkbox:checked').forEach(cb => {
+        selected.push(cb.value);
+    });
+    document.getElementById('citiesInput').value = selected.join(',');
+}
+</script>
 {% endblock %}

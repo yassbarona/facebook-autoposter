@@ -23,6 +23,7 @@
                         <a href="/texts" class="px-3 py-2 rounded hover:bg-blue-700 {% if '/texts' in request.url.path %}bg-blue-700{% endif %}">Texts</a>
                         <a href="/jobs" class="px-3 py-2 rounded hover:bg-blue-700 {% if '/jobs' in request.url.path %}bg-blue-700{% endif %}">Jobs</a>
                         <a href="/logs" class="px-3 py-2 rounded hover:bg-blue-700 {% if '/logs' in request.url.path %}bg-blue-700{% endif %}">Logs</a>
+                        <a href="/profiles" class="px-3 py-2 rounded hover:bg-blue-700 {% if '/profiles' in request.url.path %}bg-blue-700{% endif %}">Profiles</a>
                     </div>
                 </div>
                 <div class="flex items-center space-x-4">
@@ -42,13 +43,14 @@
     </nav>
 
     <!-- Mobile Navigation -->
-    <div class="md:hidden bg-blue-500 text-white">
-        <div class="flex justify-around py-2">
-            <a href="/" class="px-3 py-1">Dashboard</a>
-            <a href="/groups" class="px-3 py-1">Groups</a>
-            <a href="/texts" class="px-3 py-1">Texts</a>
-            <a href="/jobs" class="px-3 py-1">Jobs</a>
-            <a href="/logs" class="px-3 py-1">Logs</a>
+    <div class="md:hidden bg-blue-500 text-white overflow-x-auto">
+        <div class="flex py-2 px-2 space-x-2">
+            <a href="/" class="px-3 py-1 whitespace-nowrap">Dashboard</a>
+            <a href="/groups" class="px-3 py-1 whitespace-nowrap">Groups</a>
+            <a href="/texts" class="px-3 py-1 whitespace-nowrap">Texts</a>
+            <a href="/jobs" class="px-3 py-1 whitespace-nowrap">Jobs</a>
+            <a href="/logs" class="px-3 py-1 whitespace-nowrap">Logs</a>
+            <a href="/profiles" class="px-3 py-1 whitespace-nowrap">Profiles</a>
         </div>
     </div>
 

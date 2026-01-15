@@ -12,10 +12,12 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
-from ..utils.config import get_config, set_profile, get_current_profile, list_profiles
+from ..utils.config import get_config, set_profile, get_current_profile, list_profiles, get_profile_dir, get_profiles_dir
 from ..utils.telegram import get_notifier
 from ..data.storage import DataStore, LogStore
 from ..data.models import Group, Text, Job
+import shutil
+import json
 
 # Create FastAPI app
 app = FastAPI(
@@ -273,6 +275,26 @@ async def jobs_page(request: Request, _=Depends(require_auth)):
     })
 
 
+@app.post("/jobs/add")
+async def add_job(
+    request: Request,
+    name: str = Form(...),
+    text_id: str = Form(...),
+    cities: str = Form(""),
+    _=Depends(require_auth)
+):
+    """Add a new job"""
+    data_store, _ = get_stores()
+
+    # Parse cities (comma-separated or empty for all)
+    city_list = [c.strip() for c in cities.split(",") if c.strip()] if cities else []
+
+    job = Job(name=name, text_id=text_id, cities=city_list)
+    data_store.add_job(job)
+
+    return RedirectResponse(url="/jobs", status_code=302)
+
+
 @app.post("/jobs/{job_id}/toggle")
 async def toggle_job(request: Request, job_id: str, _=Depends(require_auth)):
     """Toggle job enabled status"""
@@ -336,6 +358,88 @@ async def api_status(_=Depends(require_auth)):
         },
         "stats_7d": stats
     }
+
+
+# ============== Profiles Routes ==============
+
+@app.get("/profiles", response_class=HTMLResponse)
+async def profiles_page(request: Request, _=Depends(require_auth)):
+    """Profiles management page"""
+    profile_names = list_profiles()
+    profiles_data = []
+
+    for name in profile_names:
+        profile_dir = get_profile_dir(name)
+        groups_file = profile_dir / "groups.json"
+        texts_file = profile_dir / "texts.json"
+        jobs_file = profile_dir / "jobs.json"
+        chrome_dir = profile_dir / "chrome-profile"
+
+        profiles_data.append({
+            "name": name,
+            "groups": _count_json_items(groups_file),
+            "texts": _count_json_items(texts_file),
+            "jobs": _count_json_items(jobs_file),
+            "has_chrome": chrome_dir.exists()
+        })
+
+    return templates.TemplateResponse("profiles.html", {
+        "request": request,
+        "profile": get_current_profile(),
+        "profiles": list_profiles(),
+        "profiles_data": profiles_data
+    })
+
+
+@app.post("/profiles/create")
+async def create_profile(
+    request: Request,
+    name: str = Form(...),
+    _=Depends(require_auth)
+):
+    """Create a new profile"""
+    # Sanitize name
+    name = name.strip().lower().replace(" ", "-")
+
+    profile_dir = get_profile_dir(name)
+
+    if profile_dir.exists():
+        return RedirectResponse(url="/profiles?error=Profile+already+exists", status_code=302)
+
+    # Create profile directory structure
+    profile_dir.mkdir(parents=True, exist_ok=True)
+    (profile_dir / "logs").mkdir(exist_ok=True)
+
+    # Create empty data files
+    for filename in ["groups.json", "texts.json", "jobs.json"]:
+        with open(profile_dir / filename, 'w') as f:
+            json.dump([], f)
+
+    return RedirectResponse(url="/profiles?success=Profile+created", status_code=302)
+
+
+@app.post("/profiles/{profile_name}/delete")
+async def delete_profile(request: Request, profile_name: str, _=Depends(require_auth)):
+    """Delete a profile"""
+    profile_dir = get_profile_dir(profile_name)
+
+    if not profile_dir.exists():
+        return RedirectResponse(url="/profiles?error=Profile+not+found", status_code=302)
+
+    shutil.rmtree(profile_dir)
+    return RedirectResponse(url="/profiles?success=Profile+deleted", status_code=302)
+
+
+def _count_json_items(file_path) -> int:
+    """Count items in a JSON array file"""
+    if not file_path.exists():
+        return 0
+    try:
+        with open(file_path, 'r') as f:
+            data = json.load(f)
+        return len(data) if isinstance(data, list) else 0
+    except:
+        return 0
 
 
 def run_server(host: str = "0.0.0.0", port: int = 8000):

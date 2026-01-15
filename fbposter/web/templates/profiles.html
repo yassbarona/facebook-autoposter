@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+
+{% block title %}Profiles - Facebook Auto-Poster{% endblock %}
+
+{% block content %}
+<div class="mb-8 flex justify-between items-center">
+    <div>
+        <h1 class="text-3xl font-bold text-gray-800">Profiles</h1>
+        <p class="text-gray-600">Manage profiles for multi-account support</p>
+    </div>
+    <button
+        onclick="document.getElementById('addModal').classList.remove('hidden')"
+        class="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700 transition"
+    >
+        + Create Profile
+    </button>
+</div>
+
+<!-- Success/Error Messages -->
+{% if request.query_params.get('success') %}
+<div class="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-6">
+    {{ request.query_params.get('success').replace('+', ' ') }}
+</div>
+{% endif %}
+{% if request.query_params.get('error') %}
+<div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-6">
+    {{ request.query_params.get('error').replace('+', ' ') }}
+</div>
+{% endif %}
+
+<!-- Default Profile Info -->
+<div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+    <div class="flex items-center">
+        <svg class="w-5 h-5 text-blue-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+        </svg>
+        <span class="text-blue-800">
+            <strong>Default Profile:</strong> When no profile is selected, data is stored in the main <code class="bg-blue-100 px-1 rounded">data/</code> directory.
+        </span>
+    </div>
+</div>
+
+<!-- Profiles Table -->
+<div class="bg-white rounded-lg shadow overflow-hidden">
+    {% if profiles_data %}
+    <table class="w-full">
+        <thead class="bg-gray-50">
+            <tr>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Profile Name</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Groups</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Texts</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Jobs</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Chrome Profile</th>
+                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+            </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-200">
+            {% for p in profiles_data %}
+            <tr class="hover:bg-gray-50">
+                <td class="px-6 py-4">
+                    <span class="font-medium text-gray-900">{{ p.name }}</span>
+                    {% if profile == p.name %}
+                    <span class="ml-2 px-2 py-1 bg-green-100 text-green-800 text-xs rounded">Active</span>
+                    {% endif %}
+                </td>
+                <td class="px-6 py-4 text-gray-700">{{ p.groups }}</td>
+                <td class="px-6 py-4 text-gray-700">{{ p.texts }}</td>
+                <td class="px-6 py-4 text-gray-700">{{ p.jobs }}</td>
+                <td class="px-6 py-4">
+                    {% if p.has_chrome %}
+                    <span class="px-2 py-1 bg-green-100 text-green-800 text-xs rounded">Yes</span>
+                    {% else %}
+                    <span class="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded">No</span>
+                    {% endif %}
+                </td>
+                <td class="px-6 py-4 text-right space-x-2">
+                    <a href="/?profile={{ p.name }}" class="text-blue-600 hover:text-blue-800">Switch</a>
+                    <form method="post" action="/profiles/{{ p.name }}/delete" class="inline" onsubmit="return confirm('Delete profile {{ p.name }}? This will delete all its data!')">
+                        <button type="submit" class="text-red-600 hover:text-red-800 ml-3">Delete</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="p-8 text-center">
+        <svg class="w-16 h-16 mx-auto text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
+        </svg>
+        <p class="text-gray-500 mb-4">No profiles created yet.</p>
+        <p class="text-gray-400 text-sm">Profiles allow you to manage multiple Facebook accounts with separate data.</p>
+        <button
+            onclick="document.getElementById('addModal').classList.remove('hidden')"
+            class="mt-4 text-indigo-600 hover:underline"
+        >
+            Create your first profile
+        </button>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Profile Info -->
+<div class="bg-gray-50 border border-gray-200 rounded-lg p-6 mt-6">
+    <h3 class="text-lg font-bold text-gray-800 mb-2">About Profiles</h3>
+    <p class="text-gray-600 mb-4">Each profile has its own isolated:</p>
+    <ul class="list-disc list-inside text-gray-600 space-y-1 ml-4">
+        <li>Facebook groups</li>
+        <li>Text templates</li>
+        <li>Posting jobs</li>
+        <li>Chrome profile (login session)</li>
+        <li>Posting logs</li>
+    </ul>
+    <div class="mt-4 pt-4 border-t border-gray-200">
+        <p class="text-gray-600 text-sm">CLI commands with profiles:</p>
+        <code class="bg-white px-3 py-1 rounded text-gray-800 text-sm">fbposter --profile &lt;name&gt; status</code>
+    </div>
+</div>
+
+<!-- Add Profile Modal -->
+<div id="addModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div class="bg-white rounded-lg shadow-xl w-full max-w-md mx-4">
+        <div class="p-6">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-bold text-gray-800">Create New Profile</h2>
+                <button onclick="document.getElementById('addModal').classList.add('hidden')" class="text-gray-500 hover:text-gray-700">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+            <form method="post" action="/profiles/create">
+                <div class="mb-6">
+                    <label class="block text-gray-700 font-medium mb-2">Profile Name *</label>
+                    <input
+                        type="text"
+                        name="name"
+                        required
+                        pattern="[a-zA-Z0-9\-_]+"
+                        class="w-full px-4 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        placeholder="e.g., spanish, english, backup"
+                    >
+                    <p class="text-gray-500 text-xs mt-1">Use lowercase letters, numbers, and hyphens only</p>
+                </div>
+                <div class="flex justify-end space-x-3">
+                    <button
+                        type="button"
+                        onclick="document.getElementById('addModal').classList.add('hidden')"
+                        class="px-4 py-2 border border-gray-300 rounded hover:bg-gray-100 transition"
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        type="submit"
+                        class="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 transition"
+                    >
+                        Create Profile
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
