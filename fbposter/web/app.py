@@ -82,9 +82,37 @@ def has_chrome_session(profile: Optional[str] = None) -> bool:
     if not chrome_dir.exists():
         return False
 
-    # Check for Default directory (Chrome's main profile data)
+    # Check for Default directory with actual login data
     default_dir = chrome_dir / "Default"
-    return default_dir.exists()
+    if not default_dir.exists():
+        return False
+
+    # Check for Cookies file - indicates browser was actually used
+    cookies_file = default_dir / "Cookies"
+    if not cookies_file.exists():
+        return False
+
+    # Check cookies file has reasonable size (>10KB suggests actual login)
+    try:
+        if cookies_file.stat().st_size < 10000:
+            return False
+    except:
+        return False
+
+    return True
+
+
+def get_session_profile(request: Request) -> Optional[str]:
+    """Get the current profile from session"""
+    return request.session.get("current_profile")
+
+
+def set_session_profile(request: Request, profile: Optional[str]):
+    """Set the current profile in session"""
+    if profile:
+        request.session["current_profile"] = profile
+    elif "current_profile" in request.session:
+        del request.session["current_profile"]
 
 
 # ============== Auth Routes ==============
@@ -124,10 +152,21 @@ async def dashboard(request: Request, profile: Optional[str] = None):
     if not is_authenticated(request):
         return RedirectResponse(url="/login", status_code=302)
 
-    if profile:
-        set_profile(profile)
+    # Handle profile switching - store in session
+    if profile is not None:  # Explicitly passed (even empty string means "default")
+        if profile == "":
+            set_session_profile(request, None)
+            set_profile(None)
+        else:
+            set_session_profile(request, profile)
+            set_profile(profile)
+    else:
+        # Use profile from session
+        session_profile = get_session_profile(request)
+        if session_profile:
+            set_profile(session_profile)
 
-    current_profile = get_current_profile()
+    current_profile = get_session_profile(request)
     data_store, log_store = get_stores()
 
     groups = data_store.load_groups()
@@ -168,6 +207,13 @@ async def dashboard(request: Request, profile: Optional[str] = None):
 @app.get("/groups", response_class=HTMLResponse)
 async def groups_page(request: Request, city: Optional[str] = None, _=Depends(require_auth)):
     """Groups management page"""
+    # Apply session profile
+    session_profile = get_session_profile(request)
+    if session_profile:
+        set_profile(session_profile)
+    else:
+        set_profile(None)
+
     data_store, _ = get_stores()
     groups = data_store.load_groups()
 
@@ -180,7 +226,7 @@ async def groups_page(request: Request, city: Optional[str] = None, _=Depends(re
 
     return templates.TemplateResponse("groups.html", {
         "request": request,
-        "profile": get_current_profile(),
+        "profile": session_profile,
         "profiles": list_profiles(),
         "groups": groups,
         "cities": cities,
@@ -197,6 +243,13 @@ async def add_group(
     _=Depends(require_auth)
 ):
     """Add a new group"""
+    # Apply session profile
+    session_profile = get_session_profile(request)
+    if session_profile:
+        set_profile(session_profile)
+    else:
+        set_profile(None)
+
     data_store, _ = get_stores()
 
     group = Group(city=city, url=url, name=name)
@@ -208,6 +261,13 @@ async def add_group(
 @app.post("/groups/{group_id}/toggle")
 async def toggle_group(request: Request, group_id: str, _=Depends(require_auth)):
     """Toggle group active status"""
+    # Apply session profile
+    session_profile = get_session_profile(request)
+    if session_profile:
+        set_profile(session_profile)
+    else:
+        set_profile(None)
+
     data_store, _ = get_stores()
 
     groups = data_store.load_groups()
@@ -223,6 +283,13 @@ async def toggle_group(request: Request, group_id: str, _=Depends(require_auth))
 @app.post("/groups/{group_id}/delete")
 async def delete_group(request: Request, group_id: str, _=Depends(require_auth)):
     """Delete a group"""
+    # Apply session profile
+    session_profile = get_session_profile(request)
+    if session_profile:
+        set_profile(session_profile)
+    else:
+        set_profile(None)
+
     data_store, _ = get_stores()
     data_store.remove_group(group_id)
     return RedirectResponse(url="/groups", status_code=302)
@@ -233,12 +300,19 @@ async def delete_group(request: Request, group_id: str, _=Depends(require_auth))
 @app.get("/texts", response_class=HTMLResponse)
 async def texts_page(request: Request, _=Depends(require_auth)):
     """Text templates management page"""
+    # Apply session profile
+    session_profile = get_session_profile(request)
+    if session_profile:
+        set_profile(session_profile)
+    else:
+        set_profile(None)
+
     data_store, _ = get_stores()
     texts = data_store.load_texts()
 
     return templates.TemplateResponse("texts.html", {
         "request": request,
-        "profile": get_current_profile(),
+        "profile": session_profile,
         "profiles": list_profiles(),
         "texts": texts
     })
@@ -253,6 +327,13 @@ async def add_text(
     _=Depends(require_auth)
 ):
     """Add a new text template"""
+    # Apply session profile
+    session_profile = get_session_profile(request)
+    if session_profile:
+        set_profile(session_profile)
+    else:
+        set_profile(None)
+
     data_store, _ = get_stores()
 
     text = Text(name=name, content=content, image_url=image_url)
@@ -264,6 +345,13 @@ async def add_text(
 @app.post("/texts/{text_id}/delete")
 async def delete_text(request: Request, text_id: str, _=Depends(require_auth)):
     """Delete a text template"""
+    # Apply session profile
+    session_profile = get_session_profile(request)
+    if session_profile:
+        set_profile(session_profile)
+    else:
+        set_profile(None)
+
     data_store, _ = get_stores()
     data_store.remove_text(text_id)
     return RedirectResponse(url="/texts", status_code=302)
@@ -274,6 +362,13 @@ async def delete_text(request: Request, text_id: str, _=Depends(require_auth)):
 @app.get("/jobs", response_class=HTMLResponse)
 async def jobs_page(request: Request, _=Depends(require_auth)):
     """Jobs management page"""
+    # Apply session profile
+    session_profile = get_session_profile(request)
+    if session_profile:
+        set_profile(session_profile)
+    else:
+        set_profile(None)
+
     data_store, _ = get_stores()
     jobs = data_store.load_jobs()
     texts = data_store.load_texts()
@@ -288,12 +383,11 @@ async def jobs_page(request: Request, _=Depends(require_auth)):
         job.text_name = text_map.get(job.text_id, "Unknown")
         job.cities = job.group_filters.get("cities", []) if job.group_filters else []
 
-    current_profile = get_current_profile()
     return templates.TemplateResponse("jobs.html", {
         "request": request,
-        "profile": current_profile,
+        "profile": session_profile,
         "profiles": list_profiles(),
-        "has_session": has_chrome_session(current_profile),
+        "has_session": has_chrome_session(session_profile),
         "jobs": jobs,
         "texts": texts,
         "cities": cities
@@ -309,6 +403,13 @@ async def add_job(
     _=Depends(require_auth)
 ):
     """Add a new job"""
+    # Apply session profile
+    session_profile = get_session_profile(request)
+    if session_profile:
+        set_profile(session_profile)
+    else:
+        set_profile(None)
+
     data_store, _ = get_stores()
 
     # Parse cities (comma-separated or empty for all)
@@ -326,6 +427,13 @@ async def add_job(
 @app.post("/jobs/{job_id}/toggle")
 async def toggle_job(request: Request, job_id: str, _=Depends(require_auth)):
     """Toggle job enabled status"""
+    # Apply session profile
+    session_profile = get_session_profile(request)
+    if session_profile:
+        set_profile(session_profile)
+    else:
+        set_profile(None)
+
     data_store, _ = get_stores()
 
     job = data_store.get_job(job_id)
@@ -339,6 +447,13 @@ async def toggle_job(request: Request, job_id: str, _=Depends(require_auth)):
 @app.post("/jobs/{job_id}/delete")
 async def delete_job(request: Request, job_id: str, _=Depends(require_auth)):
     """Delete a job"""
+    # Apply session profile
+    session_profile = get_session_profile(request)
+    if session_profile:
+        set_profile(session_profile)
+    else:
+        set_profile(None)
+
     data_store, _ = get_stores()
     data_store.remove_job(job_id)
     return RedirectResponse(url="/jobs", status_code=302)
@@ -347,7 +462,8 @@ async def delete_job(request: Request, job_id: str, _=Depends(require_auth)):
 @app.post("/jobs/{job_id}/run")
 async def run_job(request: Request, job_id: str, _=Depends(require_auth)):
     """Run a job in background"""
-    current_profile = get_current_profile()
+    # Get profile from session
+    current_profile = get_session_profile(request)
     has_session = has_chrome_session(current_profile)
 
     # Build the command
@@ -383,12 +499,19 @@ async def run_job(request: Request, job_id: str, _=Depends(require_auth)):
 @app.get("/logs", response_class=HTMLResponse)
 async def logs_page(request: Request, limit: int = 50, _=Depends(require_auth)):
     """Logs viewing page"""
+    # Apply session profile
+    session_profile = get_session_profile(request)
+    if session_profile:
+        set_profile(session_profile)
+    else:
+        set_profile(None)
+
     _, log_store = get_stores()
     logs = log_store.get_recent_logs(limit=limit)
 
     return templates.TemplateResponse("logs.html", {
         "request": request,
-        "profile": get_current_profile(),
+        "profile": session_profile,
         "profiles": list_profiles(),
         "logs": logs,
         "limit": limit
@@ -398,8 +521,15 @@ async def logs_page(request: Request, limit: int = 50, _=Depends(require_auth)):
 # ============== API Routes ==============
 
 @app.get("/api/status")
-async def api_status(_=Depends(require_auth)):
+async def api_status(request: Request, _=Depends(require_auth)):
     """API endpoint for status"""
+    # Apply session profile
+    session_profile = get_session_profile(request)
+    if session_profile:
+        set_profile(session_profile)
+    else:
+        set_profile(None)
+
     data_store, log_store = get_stores()
 
     groups = data_store.load_groups()
@@ -408,7 +538,7 @@ async def api_status(_=Depends(require_auth)):
     stats = log_store.get_success_rate(days=7)
 
     return {
-        "profile": get_current_profile(),
+        "profile": session_profile,
         "groups": {
             "total": len(groups),
             "active": len([g for g in groups if g.active])
@@ -427,6 +557,7 @@ async def api_status(_=Depends(require_auth)):
 @app.get("/profiles", response_class=HTMLResponse)
 async def profiles_page(request: Request, _=Depends(require_auth)):
     """Profiles management page"""
+    session_profile = get_session_profile(request)
     profile_names = list_profiles()
     profiles_data = []
 
@@ -435,19 +566,18 @@ async def profiles_page(request: Request, _=Depends(require_auth)):
         groups_file = profile_dir / "groups.json"
         texts_file = profile_dir / "texts.json"
         jobs_file = profile_dir / "jobs.json"
-        chrome_dir = profile_dir / "chrome-profile"
 
         profiles_data.append({
             "name": name,
             "groups": _count_json_items(groups_file),
             "texts": _count_json_items(texts_file),
             "jobs": _count_json_items(jobs_file),
-            "has_chrome": chrome_dir.exists()
+            "has_chrome": has_chrome_session(name)
         })
 
     return templates.TemplateResponse("profiles.html", {
         "request": request,
-        "profile": get_current_profile(),
+        "profile": session_profile,
         "profiles": list_profiles(),
         "profiles_data": profiles_data
     })
