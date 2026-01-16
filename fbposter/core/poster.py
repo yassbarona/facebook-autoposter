@@ -278,15 +278,20 @@ class FacebookPoster:
 def login_to_facebook(browser: Browser, profile: str = None, timeout: int = 300) -> bool:
     """Open browser and wait for user to login to Facebook
 
+    The browser stays open until the user manually closes it, allowing time
+    for any verification steps Facebook may require.
+
     Args:
         browser: Browser instance (should be non-headless)
         profile: Current profile name
-        timeout: Seconds to wait for login
+        timeout: Not used anymore - browser stays open until user closes it
 
     Returns:
         True if login successful, False otherwise
     """
     logger.info("Starting Facebook login flow...")
+    logger.info("Browser will stay open until you close it manually.")
+    logger.info("Complete ALL verification steps before closing the browser.")
 
     try:
         # Navigate to Facebook
@@ -299,26 +304,68 @@ def login_to_facebook(browser: Browser, profile: str = None, timeout: int = 300)
         # Check if already logged in
         if browser.is_logged_in():
             logger.info("Already logged in to Facebook!")
+            logger.info("Saving cookies...")
+            browser.save_cookies()
             mark_session_ready(profile)
+            logger.info("You can close the browser now, or continue browsing.")
+            # Wait for user to close browser
+            _wait_for_browser_close(browser)
             return True
 
-        # Wait for user to login
-        logger.info("Please login to Facebook in the browser window...")
-        if browser.wait_for_login(timeout=timeout):
-            # Login successful - save cookies and mark session as ready
-            logger.info("Saving cookies for session persistence...")
+        # Show instructions
+        logger.info("=" * 50)
+        logger.info("Please login to Facebook in the browser window.")
+        logger.info("Complete any verification steps Facebook requires.")
+        logger.info("When done, CLOSE THE BROWSER to save the session.")
+        logger.info("=" * 50)
+
+        # Wait for user to close browser manually
+        _wait_for_browser_close(browser)
+
+        # Browser was closed - now check if login was successful by looking at saved cookies
+        logger.info("Browser closed. Checking if login was successful...")
+
+        # Save cookies right before the check (browser might still have them)
+        try:
             browser.save_cookies()
-            time.sleep(2)  # Give time for cookies to be written
-            mark_session_ready(profile)
-            logger.info("Login successful! Session and cookies saved.")
-            return True
-        else:
-            logger.error("Login timeout - user did not login in time")
-            return False
+        except:
+            pass  # Browser might already be closed
+
+        mark_session_ready(profile)
+        logger.info("Session saved! You can now run jobs.")
+        return True
 
     except Exception as e:
         logger.error(f"Login error: {e}")
         return False
+
+
+def _wait_for_browser_close(browser: Browser):
+    """Wait for user to close the browser manually, saving cookies periodically"""
+    logger.info("Waiting for browser to be closed...")
+    last_save = 0
+    try:
+        while True:
+            try:
+                # Check if browser is still alive by getting current URL
+                url = browser.driver.current_url
+
+                # Save cookies every 10 seconds while browser is open
+                now = time.time()
+                if now - last_save > 10:
+                    try:
+                        browser.save_cookies()
+                        last_save = now
+                    except Exception as e:
+                        logger.debug(f"Could not save cookies: {e}")
+
+                time.sleep(2)
+            except:
+                # Browser was closed
+                logger.info("Browser closed by user.")
+                break
+    except:
+        pass
 
 
 def run_job(job: Job, browser: Browser, data_store, dry_run: bool = False) -> Dict:
