@@ -18,11 +18,28 @@ from tenacity import (
 from ..data.models import Group, Text, Job, PostLog
 from ..data.storage import LogStore
 from ..utils.logger import get_logger
-from ..utils.config import get_config, get_current_profile
+from ..utils.config import get_config, get_current_profile, get_profile_dir
 from ..utils.telegram import notify_job_start, notify_job_complete, notify_error
 from .browser import Browser, BrowserError, ElementNotFoundError, AuthenticationError
+from pathlib import Path
 
 logger = get_logger("poster")
+
+
+def mark_session_ready(profile: str = None):
+    """Mark session as ready after successful Facebook interaction"""
+    if profile:
+        profile_dir = get_profile_dir(profile)
+    else:
+        # Default profile uses root package directory
+        profile_dir = Path(__file__).parent.parent.parent
+
+    marker_file = profile_dir / ".session_ready"
+    try:
+        marker_file.touch()
+        logger.debug(f"Session marked as ready: {marker_file}")
+    except Exception as e:
+        logger.warning(f"Could not create session marker: {e}")
 
 
 class RateLimiter:
@@ -287,6 +304,9 @@ def run_job(job: Job, browser: Browser, data_store, dry_run: bool = False) -> Di
     browser.navigate_to("https://www.facebook.com")
     browser.verify_login()
 
+    # Mark session as ready after successful login verification
+    mark_session_ready(profile)
+
     # Post to each group
     poster = FacebookPoster(browser)
     results = {
@@ -330,6 +350,11 @@ def run_job(job: Job, browser: Browser, data_store, dry_run: bool = False) -> Di
     data_store.update_job(job)
 
     logger.info(f"Job completed: {results['successful']} successful, {results['failed']} failed")
+
+    # Mark session as ready if at least one post succeeded
+    if results["successful"] > 0:
+        mark_session_ready(profile)
+        logger.info("Session marked as ready for future headless runs")
 
     # Send Telegram notification for job completion
     if not dry_run:

@@ -75,20 +75,26 @@
                         {{ 'Enabled' if job.enabled else 'Disabled' }}
                     </span>
                 </td>
-                <td class="px-6 py-4 text-right space-x-2">
-                    <form method="post" action="/jobs/{{ job.id }}/run" class="inline" onsubmit="this.querySelector('button').disabled=true; this.querySelector('button').innerText='Running...';">
-                        <button type="submit" class="text-green-600 hover:text-green-800 font-medium">
-                            Run
-                        </button>
-                    </form>
-                    <form method="post" action="/jobs/{{ job.id }}/toggle" class="inline">
-                        <button type="submit" class="text-blue-600 hover:text-blue-800 ml-3">
-                            {{ 'Disable' if job.enabled else 'Enable' }}
-                        </button>
-                    </form>
-                    <form method="post" action="/jobs/{{ job.id }}/delete" class="inline" onsubmit="return confirm('Delete this job?')">
-                        <button type="submit" class="text-red-600 hover:text-red-800 ml-3">Delete</button>
-                    </form>
+                <td class="px-6 py-4 text-right">
+                    <div class="flex items-center justify-end space-x-2">
+                        <form method="post" action="/jobs/{{ job.id }}/run" class="inline-flex items-center" onsubmit="this.querySelector('button[type=submit]').disabled=true; this.querySelector('button[type=submit]').innerText='Starting...';">
+                            <label class="flex items-center mr-2 text-xs text-gray-500 cursor-pointer" title="Check this to open browser for Facebook login">
+                                <input type="checkbox" name="open_browser" value="true" class="mr-1" {% if not has_session %}checked{% endif %}>
+                                Browser
+                            </label>
+                            <button type="submit" class="text-green-600 hover:text-green-800 font-medium">
+                                Run
+                            </button>
+                        </form>
+                        <form method="post" action="/jobs/{{ job.id }}/toggle" class="inline">
+                            <button type="submit" class="text-blue-600 hover:text-blue-800">
+                                {{ 'Disable' if job.enabled else 'Enable' }}
+                            </button>
+                        </form>
+                        <form method="post" action="/jobs/{{ job.id }}/delete" class="inline" onsubmit="return confirm('Delete this job?')">
+                            <button type="submit" class="text-red-600 hover:text-red-800">Delete</button>
+                        </form>
+                    </div>
                 </td>
             </tr>
             {% endfor %}

@@ -69,37 +69,46 @@ def get_stores(profile: Optional[str] = None):
 
 
 def has_chrome_session(profile: Optional[str] = None) -> bool:
-    """Check if profile has a Chrome session (logged into Facebook)"""
+    """Check if profile has a verified Chrome session (logged into Facebook)
+
+    We use a marker file (.session_ready) that is created after a successful job run.
+    This is more reliable than checking cookie files.
+    """
     if profile:
-        chrome_dir = get_profile_dir(profile) / "chrome-profile"
+        profile_dir = get_profile_dir(profile)
     else:
-        # Default profile uses root chrome-profile
+        # Default profile uses root directory
         from pathlib import Path
-        package_dir = Path(__file__).parent.parent.parent
-        chrome_dir = package_dir / "chrome-profile"
+        profile_dir = Path(__file__).parent.parent.parent
 
-    # Check if chrome profile exists and has data
-    if not chrome_dir.exists():
-        return False
+    # Check for session marker file (created after successful job)
+    marker_file = profile_dir / ".session_ready"
+    return marker_file.exists()
 
-    # Check for Default directory with actual login data
-    default_dir = chrome_dir / "Default"
-    if not default_dir.exists():
-        return False
 
-    # Check for Cookies file - indicates browser was actually used
-    cookies_file = default_dir / "Cookies"
-    if not cookies_file.exists():
-        return False
+def mark_session_ready(profile: Optional[str] = None):
+    """Mark a profile's session as ready (called after successful job)"""
+    if profile:
+        profile_dir = get_profile_dir(profile)
+    else:
+        from pathlib import Path
+        profile_dir = Path(__file__).parent.parent.parent
 
-    # Check cookies file has reasonable size (>10KB suggests actual login)
-    try:
-        if cookies_file.stat().st_size < 10000:
-            return False
-    except:
-        return False
+    marker_file = profile_dir / ".session_ready"
+    marker_file.touch()
 
-    return True
+
+def clear_session_marker(profile: Optional[str] = None):
+    """Clear a profile's session marker (for re-login)"""
+    if profile:
+        profile_dir = get_profile_dir(profile)
+    else:
+        from pathlib import Path
+        profile_dir = Path(__file__).parent.parent.parent
+
+    marker_file = profile_dir / ".session_ready"
+    if marker_file.exists():
+        marker_file.unlink()
 
 
 def get_session_profile(request: Request) -> Optional[str]:
@@ -460,7 +469,12 @@ async def delete_job(request: Request, job_id: str, _=Depends(require_auth)):
 
 
 @app.post("/jobs/{job_id}/run")
-async def run_job(request: Request, job_id: str, _=Depends(require_auth)):
+async def run_job(
+    request: Request,
+    job_id: str,
+    open_browser: bool = Form(False),
+    _=Depends(require_auth)
+):
     """Run a job in background"""
     # Get profile from session
     current_profile = get_session_profile(request)
@@ -472,8 +486,8 @@ async def run_job(request: Request, job_id: str, _=Depends(require_auth)):
         cmd.extend(["--profile", current_profile])
     cmd.extend(["run", job_id])
 
-    # If no Chrome session, run with visible browser for login
-    if not has_session:
+    # Open browser if: user requested it OR no session exists
+    if open_browser or not has_session:
         cmd.append("--no-headless")
 
     try:
@@ -485,13 +499,23 @@ async def run_job(request: Request, job_id: str, _=Depends(require_auth)):
             start_new_session=True  # Detach from parent process
         )
 
-        if has_session:
-            return RedirectResponse(url="/jobs?success=Job+started+in+background.+Check+Logs+for+progress.", status_code=302)
+        if open_browser or not has_session:
+            return RedirectResponse(url="/jobs?success=Job+started+with+browser.+Login+to+Facebook,+then+let+job+complete.+Session+will+be+saved.", status_code=302)
         else:
-            return RedirectResponse(url="/jobs?success=Job+started.+Browser+opened+for+login.+Complete+login+to+continue.", status_code=302)
+            return RedirectResponse(url="/jobs?success=Job+started+in+background.+Check+Logs+for+progress.", status_code=302)
 
     except Exception as e:
         return RedirectResponse(url=f"/jobs?error=Failed+to+start+job:+{str(e)[:50]}", status_code=302)
+
+
+@app.post("/profiles/{profile_name}/clear-session")
+async def clear_profile_session(request: Request, profile_name: str, _=Depends(require_auth)):
+    """Clear a profile's session marker to force re-login"""
+    if profile_name == "default":
+        clear_session_marker(None)
+    else:
+        clear_session_marker(profile_name)
+    return RedirectResponse(url="/profiles?success=Session+cleared.+Browser+will+open+on+next+job+run.", status_code=302)
 
 
 # ============== Logs Routes ==============
