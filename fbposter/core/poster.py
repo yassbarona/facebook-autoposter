@@ -320,8 +320,13 @@ def login_to_facebook(browser: Browser, profile: str = None, timeout: int = 300)
 
 def run_job(job: Job, browser: Browser, data_store, dry_run: bool = False) -> Dict:
     """Execute a posting job"""
-    logger.info(f"Running job: {job.name}")
     profile = get_current_profile()
+    logger.info(f"Running job: {job.name} (profile: {profile or 'default'})")
+
+    # Log chrome profile directory for debugging
+    config = get_config()
+    chrome_dir = config.get_chrome_profile_dir()
+    logger.info(f"Using Chrome profile: {chrome_dir}")
 
     # Get text template
     text = data_store.get_text(job.text_id)
@@ -339,13 +344,23 @@ def run_job(job: Job, browser: Browser, data_store, dry_run: bool = False) -> Di
 
     logger.info(f"Found {len(groups)} groups to post to")
 
+    # Record job run start
+    log_store = LogStore()
+    run_id = log_store.start_job_run(job.id, job.name, profile, len(groups))
+    logger.info(f"Started job run #{run_id}")
+
     # Send Telegram notification for job start
     if not dry_run:
         notify_job_start(job.name, len(groups), profile)
 
     # Verify login
-    browser.navigate_to("https://www.facebook.com")
-    browser.verify_login()
+    try:
+        browser.navigate_to("https://www.facebook.com")
+        browser.verify_login()
+    except Exception as e:
+        logger.error(f"Login verification failed: {e}")
+        log_store.complete_job_run(run_id, 0, 0, f"Login failed: {e}")
+        raise
 
     # Mark session as ready after successful login verification
     mark_session_ready(profile)
@@ -393,6 +408,11 @@ def run_job(job: Job, browser: Browser, data_store, dry_run: bool = False) -> Di
     data_store.update_job(job)
 
     logger.info(f"Job completed: {results['successful']} successful, {results['failed']} failed")
+
+    # Record job run completion
+    error_msg = "; ".join(results["errors"][:3]) if results["errors"] else None
+    log_store.complete_job_run(run_id, results["successful"], results["failed"], error_msg)
+    logger.info(f"Job run #{run_id} completed")
 
     # Mark session as ready if at least one post succeeded
     if results["successful"] > 0:

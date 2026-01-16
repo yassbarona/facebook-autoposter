@@ -251,6 +251,25 @@ class LogStore:
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_status ON post_log(status)')
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_city ON post_log(city)')
 
+        # Job runs table for tracking running/completed jobs
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS job_runs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                job_id TEXT NOT NULL,
+                job_name TEXT,
+                profile TEXT,
+                status TEXT DEFAULT 'running',
+                started_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                completed_at DATETIME,
+                total_groups INTEGER DEFAULT 0,
+                successful INTEGER DEFAULT 0,
+                failed INTEGER DEFAULT 0,
+                error_message TEXT
+            )
+        ''')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_job_runs_status ON job_runs(status)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_job_runs_started ON job_runs(started_at)')
+
         conn.commit()
         conn.close()
 
@@ -340,3 +359,66 @@ class LogStore:
             'skipped': skipped or 0,
             'success_rate': (successful / total * 100) if total > 0 else 0
         }
+
+    def start_job_run(self, job_id: str, job_name: str, profile: str = None, total_groups: int = 0) -> int:
+        """Record the start of a job run, returns the run ID"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        cursor.execute('''
+            INSERT INTO job_runs (job_id, job_name, profile, status, total_groups)
+            VALUES (?, ?, ?, 'running', ?)
+        ''', (job_id, job_name, profile, total_groups))
+
+        run_id = cursor.lastrowid
+        conn.commit()
+        conn.close()
+        return run_id
+
+    def complete_job_run(self, run_id: int, successful: int, failed: int, error_message: str = None):
+        """Mark a job run as completed"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        status = 'completed' if error_message is None else 'failed'
+        cursor.execute('''
+            UPDATE job_runs
+            SET status = ?, completed_at = CURRENT_TIMESTAMP,
+                successful = ?, failed = ?, error_message = ?
+            WHERE id = ?
+        ''', (status, successful, failed, error_message, run_id))
+
+        conn.commit()
+        conn.close()
+
+    def get_recent_job_runs(self, limit: int = 20) -> List[Dict]:
+        """Get recent job runs"""
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+
+        cursor.execute('''
+            SELECT * FROM job_runs
+            ORDER BY started_at DESC
+            LIMIT ?
+        ''', (limit,))
+
+        rows = cursor.fetchall()
+        conn.close()
+        return [dict(row) for row in rows]
+
+    def get_running_jobs(self) -> List[Dict]:
+        """Get currently running jobs"""
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+
+        cursor.execute('''
+            SELECT * FROM job_runs
+            WHERE status = 'running'
+            ORDER BY started_at DESC
+        ''')
+
+        rows = cursor.fetchall()
+        conn.close()
+        return [dict(row) for row in rows]

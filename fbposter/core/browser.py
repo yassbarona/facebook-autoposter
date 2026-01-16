@@ -59,7 +59,20 @@ class Browser:
         # Use persistent profile for login session (profile-aware)
         chrome_profile = self.config.get_chrome_profile_dir()
         chrome_profile.mkdir(parents=True, exist_ok=True)
+        logger.info(f"Chrome profile directory: {chrome_profile}")
+
+        # Clean up stale lock files that could prevent profile access
+        for stale_file in ['SingletonLock', 'SingletonSocket', 'SingletonCookie']:
+            stale_path = chrome_profile / stale_file
+            if stale_path.exists():
+                try:
+                    stale_path.unlink()
+                    logger.debug(f"Removed stale lock file: {stale_file}")
+                except Exception as e:
+                    logger.warning(f"Could not remove {stale_file}: {e}")
+
         options.add_argument(f'--user-data-dir={chrome_profile}')
+        options.add_argument('--profile-directory=Default')
 
         try:
             service = Service(ChromeDriverManager().install())

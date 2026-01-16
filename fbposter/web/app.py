@@ -564,12 +564,16 @@ async def logs_page(request: Request, limit: int = 50, _=Depends(require_auth)):
 
     _, log_store = get_stores()
     logs = log_store.get_recent_logs(limit=limit)
+    job_runs = log_store.get_recent_job_runs(limit=20)
+    running_jobs = log_store.get_running_jobs()
 
     return templates.TemplateResponse("logs.html", {
         "request": request,
         "profile": session_profile,
         "profiles": list_profiles(),
         "logs": logs,
+        "job_runs": job_runs,
+        "running_jobs": running_jobs,
         "limit": limit
     })
 
