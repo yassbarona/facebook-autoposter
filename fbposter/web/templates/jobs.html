@@ -8,9 +8,7 @@
         <h1 class="text-3xl font-bold text-gray-800">Posting Jobs</h1>
         <p class="text-gray-600">
             Configure which texts get posted to which groups
-            {% if not has_session %}
-            <span class="ml-2 px-2 py-1 bg-yellow-100 text-yellow-800 text-xs rounded">Browser will open for login</span>
-            {% endif %}
+            <span class="ml-2 px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded">Browser visible by default</span>
         </p>
     </div>
     <button
@@ -78,9 +76,9 @@
                 <td class="px-6 py-4 text-right">
                     <div class="flex items-center justify-end space-x-2">
                         <form method="post" action="/jobs/{{ job.id }}/run" class="inline-flex items-center" onsubmit="this.querySelector('button[type=submit]').disabled=true; this.querySelector('button[type=submit]').innerText='Starting...';">
-                            <label class="flex items-center mr-2 text-xs text-gray-500 cursor-pointer" title="Check this to open browser for Facebook login">
-                                <input type="checkbox" name="open_browser" value="true" class="mr-1" {% if not has_session %}checked{% endif %}>
-                                Browser
+                            <label class="flex items-center mr-2 text-xs text-gray-500 cursor-pointer" title="Check to run without browser window">
+                                <input type="checkbox" name="headless" value="true" class="mr-1">
+                                Headless
                             </label>
                             <button type="submit" class="text-green-600 hover:text-green-800 font-medium">
                                 Run

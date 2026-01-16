@@ -472,13 +472,12 @@ async def delete_job(request: Request, job_id: str, _=Depends(require_auth)):
 async def run_job(
     request: Request,
     job_id: str,
-    open_browser: bool = Form(False),
+    headless: bool = Form(False),
     _=Depends(require_auth)
 ):
     """Run a job in background"""
     # Get profile from session
     current_profile = get_session_profile(request)
-    has_session = has_chrome_session(current_profile)
 
     # Build the command
     cmd = ["fbposter"]
@@ -486,8 +485,8 @@ async def run_job(
         cmd.extend(["--profile", current_profile])
     cmd.extend(["run", job_id])
 
-    # Open browser if: user requested it OR no session exists
-    if open_browser or not has_session:
+    # Default is browser visible, only go headless if explicitly requested
+    if not headless:
         cmd.append("--no-headless")
 
     try:
@@ -499,10 +498,10 @@ async def run_job(
             start_new_session=True  # Detach from parent process
         )
 
-        if open_browser or not has_session:
-            return RedirectResponse(url="/jobs?success=Job+started+with+browser.+Login+to+Facebook,+then+let+job+complete.+Session+will+be+saved.", status_code=302)
+        if headless:
+            return RedirectResponse(url="/jobs?success=Job+started+in+headless+mode.+Check+Logs+for+progress.", status_code=302)
         else:
-            return RedirectResponse(url="/jobs?success=Job+started+in+background.+Check+Logs+for+progress.", status_code=302)
+            return RedirectResponse(url="/jobs?success=Job+started+with+browser+visible.+Check+Logs+for+progress.", status_code=302)
 
     except Exception as e:
         return RedirectResponse(url=f"/jobs?error=Failed+to+start+job:+{str(e)[:50]}", status_code=302)
