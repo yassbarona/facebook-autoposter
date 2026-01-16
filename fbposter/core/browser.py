@@ -3,6 +3,8 @@ Browser management for Facebook automation
 Simplified to match the working test script
 """
 import time
+import pickle
+from pathlib import Path
 from typing import Optional, List
 from selenium import webdriver
 from selenium.webdriver.common.by import By
@@ -172,6 +174,57 @@ class Browser:
 
         logger.warning(f"Login timeout after {timeout}s")
         return False
+
+    def get_cookies_file(self) -> Path:
+        """Get the path to the cookies file for this profile"""
+        chrome_profile = self.config.get_chrome_profile_dir()
+        return chrome_profile / "facebook_cookies.pkl"
+
+    def save_cookies(self):
+        """Save browser cookies to a file for session persistence"""
+        try:
+            cookies_file = self.get_cookies_file()
+            cookies = self.driver.get_cookies()
+            with open(cookies_file, 'wb') as f:
+                pickle.dump(cookies, f)
+            logger.info(f"Saved {len(cookies)} cookies to {cookies_file}")
+        except Exception as e:
+            logger.error(f"Failed to save cookies: {e}")
+
+    def load_cookies(self):
+        """Load cookies from file to restore session"""
+        try:
+            cookies_file = self.get_cookies_file()
+            if not cookies_file.exists():
+                logger.info("No saved cookies found")
+                return False
+
+            # First navigate to Facebook to set the domain
+            self.driver.get("https://www.facebook.com")
+            time.sleep(2)
+
+            with open(cookies_file, 'rb') as f:
+                cookies = pickle.load(f)
+
+            for cookie in cookies:
+                try:
+                    # Some cookies may have expiry issues, skip those
+                    if 'expiry' in cookie:
+                        cookie['expiry'] = int(cookie['expiry'])
+                    self.driver.add_cookie(cookie)
+                except Exception as e:
+                    logger.debug(f"Could not add cookie {cookie.get('name')}: {e}")
+
+            logger.info(f"Loaded {len(cookies)} cookies from {cookies_file}")
+
+            # Refresh to apply cookies
+            self.driver.refresh()
+            time.sleep(3)
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to load cookies: {e}")
+            return False
 
     def quit(self):
         """Quit browser gracefully"""

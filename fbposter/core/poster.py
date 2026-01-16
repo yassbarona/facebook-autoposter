@@ -305,9 +305,12 @@ def login_to_facebook(browser: Browser, profile: str = None, timeout: int = 300)
         # Wait for user to login
         logger.info("Please login to Facebook in the browser window...")
         if browser.wait_for_login(timeout=timeout):
-            # Login successful - mark session as ready
+            # Login successful - save cookies and mark session as ready
+            logger.info("Saving cookies for session persistence...")
+            browser.save_cookies()
+            time.sleep(2)  # Give time for cookies to be written
             mark_session_ready(profile)
-            logger.info("Login successful! Session saved.")
+            logger.info("Login successful! Session and cookies saved.")
             return True
         else:
             logger.error("Login timeout - user did not login in time")
@@ -352,6 +355,14 @@ def run_job(job: Job, browser: Browser, data_store, dry_run: bool = False) -> Di
     # Send Telegram notification for job start
     if not dry_run:
         notify_job_start(job.name, len(groups), profile)
+
+    # Try to restore session from saved cookies
+    try:
+        logger.info("Attempting to restore session from saved cookies...")
+        browser.load_cookies()
+        time.sleep(2)
+    except Exception as e:
+        logger.warning(f"Could not load cookies: {e}")
 
     # Verify login
     try:
