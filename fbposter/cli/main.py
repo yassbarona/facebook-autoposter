@@ -117,6 +117,42 @@ def version():
     console.print("Automated Facebook group posting with scheduling\n")
 
 
+@cli.command()
+@click.option('--timeout', '-t', default=300, help='Seconds to wait for login (default: 300)')
+def login(timeout):
+    """Open browser and login to Facebook
+
+    This opens a browser window where you can login to Facebook.
+    The session will be saved for future headless runs.
+    """
+    from ..core.browser import Browser
+    from ..core.poster import login_to_facebook
+
+    profile = get_current_profile()
+
+    console.print("\n[bold cyan]Facebook Login[/bold cyan]")
+    if profile:
+        console.print(f"Profile: [cyan]{profile}[/cyan]")
+    console.print()
+    console.print("[yellow]A browser window will open.[/yellow]")
+    console.print("[yellow]Please login to Facebook within the browser.[/yellow]")
+    console.print(f"[dim]Timeout: {timeout} seconds[/dim]\n")
+
+    try:
+        with Browser(headless=False) as browser:
+            success = login_to_facebook(browser, profile, timeout=timeout)
+
+            if success:
+                console.print("\n[green]Login successful![/green]")
+                console.print("Your session has been saved. Future jobs can run headless.")
+            else:
+                console.print("\n[red]Login failed or timed out.[/red]")
+                console.print("Please try again with: fbposter login")
+
+    except Exception as e:
+        console.print(f"\n[red]Error: {e}[/red]")
+
+
 # Import command modules to register them (must be after cli is defined)
 from . import groups, texts, jobs, migrate, profiles, telegram, web
 

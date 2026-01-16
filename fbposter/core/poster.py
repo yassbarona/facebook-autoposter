@@ -275,6 +275,49 @@ class FacebookPoster:
             logger.warning(f"Failed to send webhook: {e}")
 
 
+def login_to_facebook(browser: Browser, profile: str = None, timeout: int = 300) -> bool:
+    """Open browser and wait for user to login to Facebook
+
+    Args:
+        browser: Browser instance (should be non-headless)
+        profile: Current profile name
+        timeout: Seconds to wait for login
+
+    Returns:
+        True if login successful, False otherwise
+    """
+    logger.info("Starting Facebook login flow...")
+
+    try:
+        # Navigate to Facebook
+        browser.navigate_to("https://www.facebook.com")
+        time.sleep(3)
+
+        # Dismiss any cookie popups
+        browser.dismiss_popups()
+
+        # Check if already logged in
+        if browser.is_logged_in():
+            logger.info("Already logged in to Facebook!")
+            mark_session_ready(profile)
+            return True
+
+        # Wait for user to login
+        logger.info("Please login to Facebook in the browser window...")
+        if browser.wait_for_login(timeout=timeout):
+            # Login successful - mark session as ready
+            mark_session_ready(profile)
+            logger.info("Login successful! Session saved.")
+            return True
+        else:
+            logger.error("Login timeout - user did not login in time")
+            return False
+
+    except Exception as e:
+        logger.error(f"Login error: {e}")
+        return False
+
+
 def run_job(job: Job, browser: Browser, data_store, dry_run: bool = False) -> Dict:
     """Execute a posting job"""
     logger.info(f"Running job: {job.name}")

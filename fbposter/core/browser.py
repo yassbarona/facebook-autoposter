@@ -129,6 +129,37 @@ class Browser:
                 "Not logged in to Facebook. Please log in manually first."
             )
 
+    def wait_for_login(self, timeout: int = 300, check_interval: int = 5) -> bool:
+        """Wait for user to login manually, checking periodically
+
+        Args:
+            timeout: Maximum seconds to wait (default 5 minutes)
+            check_interval: Seconds between login checks
+
+        Returns:
+            True if logged in, False if timeout
+        """
+        logger.info(f"Waiting for Facebook login (timeout: {timeout}s)...")
+        logger.info("Please login to Facebook in the browser window.")
+
+        elapsed = 0
+        while elapsed < timeout:
+            # Check if logged in
+            if self.is_logged_in():
+                logger.info("Login detected! Session will be saved.")
+                return True
+
+            # Wait before next check
+            time.sleep(check_interval)
+            elapsed += check_interval
+
+            # Log progress every 30 seconds
+            if elapsed % 30 == 0:
+                logger.info(f"Still waiting for login... ({elapsed}s / {timeout}s)")
+
+        logger.warning(f"Login timeout after {timeout}s")
+        return False
+
     def quit(self):
         """Quit browser gracefully"""
         if self.driver:

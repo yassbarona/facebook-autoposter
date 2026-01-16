@@ -30,13 +30,18 @@
 
 <!-- Default Profile Info -->
 <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-    <div class="flex items-center">
-        <svg class="w-5 h-5 text-blue-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-        </svg>
-        <span class="text-blue-800">
-            <strong>Default Profile:</strong> When no profile is selected, data is stored in the main <code class="bg-blue-100 px-1 rounded">data/</code> directory.
-        </span>
+    <div class="flex items-center justify-between">
+        <div class="flex items-center">
+            <svg class="w-5 h-5 text-blue-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+            <span class="text-blue-800">
+                <strong>Default Profile:</strong> When no profile is selected, data is stored in the main <code class="bg-blue-100 px-1 rounded">data/</code> directory.
+            </span>
+        </div>
+        <form method="post" action="/profiles/default/login" class="inline">
+            <button type="submit" class="text-blue-600 hover:text-blue-800 font-medium">Login (Default)</button>
+        </form>
     </div>
 </div>
 
@@ -75,7 +80,11 @@
                 </td>
                 <td class="px-6 py-4 text-right space-x-2">
                     <a href="/?profile={{ p.name }}" class="text-blue-600 hover:text-blue-800">Switch</a>
-                    {% if p.has_chrome %}
+                    {% if not p.has_chrome %}
+                    <form method="post" action="/profiles/{{ p.name }}/login" class="inline">
+                        <button type="submit" class="text-green-600 hover:text-green-800 ml-2 font-medium">Login to Facebook</button>
+                    </form>
+                    {% else %}
                     <form method="post" action="/profiles/{{ p.name }}/clear-session" class="inline" onsubmit="return confirm('Clear session for {{ p.name }}? You will need to login again.')">
                         <button type="submit" class="text-yellow-600 hover:text-yellow-800 ml-2">Clear Session</button>
                     </form>

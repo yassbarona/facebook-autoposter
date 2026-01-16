@@ -518,6 +518,38 @@ async def clear_profile_session(request: Request, profile_name: str, _=Depends(r
     return RedirectResponse(url="/profiles?success=Session+cleared.+Browser+will+open+on+next+job+run.", status_code=302)
 
 
+@app.post("/profiles/{profile_name}/login")
+async def login_profile(request: Request, profile_name: str, _=Depends(require_auth)):
+    """Start Facebook login for a profile"""
+    # Build the login command
+    cmd = ["fbposter"]
+
+    if profile_name != "default":
+        cmd.extend(["--profile", profile_name])
+
+    cmd.extend(["login"])
+
+    try:
+        # Run login in background (non-blocking)
+        subprocess.Popen(
+            cmd,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True
+        )
+
+        return RedirectResponse(
+            url="/profiles?success=Browser+opened.+Please+login+to+Facebook.+You+have+5+minutes.",
+            status_code=302
+        )
+
+    except Exception as e:
+        return RedirectResponse(
+            url=f"/profiles?error=Failed+to+start+login:+{str(e)[:50]}",
+            status_code=302
+        )
+
+
 # ============== Logs Routes ==============
 
 @app.get("/logs", response_class=HTMLResponse)
