@@ -40,6 +40,7 @@
             <tr>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">City</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Lang</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">URL</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                 <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
@@ -53,6 +54,13 @@
                     <p class="text-gray-500 text-xs">{{ group.id[:8] }}...</p>
                 </td>
                 <td class="px-6 py-4 text-gray-700">{{ group.city }}</td>
+                <td class="px-6 py-4">
+                    {% if group.language %}
+                    <span class="px-2 py-1 bg-indigo-100 text-indigo-800 text-xs rounded uppercase">{{ group.language }}</span>
+                    {% else %}
+                    <span class="text-gray-400 text-xs">-</span>
+                    {% endif %}
+                </td>
                 <td class="px-6 py-4">
                     <a href="{{ group.url }}" target="_blank" class="text-blue-600 hover:underline text-sm truncate block max-w-xs">
                         {{ group.url }}
@@ -118,6 +126,22 @@
                         <option value="{{ city }}">
                         {% endfor %}
                     </datalist>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-gray-700 font-medium mb-2">Language</label>
+                    <select
+                        name="language"
+                        class="w-full px-4 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                        <option value="">None (default)</option>
+                        <option value="es">Spanish (es)</option>
+                        <option value="en">English (en)</option>
+                        <option value="de">German (de)</option>
+                        <option value="fr">French (fr)</option>
+                        <option value="pt">Portuguese (pt)</option>
+                        <option value="it">Italian (it)</option>
+                    </select>
+                    <p class="text-gray-500 text-xs mt-1">Use to distinguish groups in different languages for the same city</p>
                 </div>
                 <div class="mb-4">
                     <label class="block text-gray-700 font-medium mb-2">Facebook Group URL *</label>

@@ -43,18 +43,54 @@ def list_profiles() -> list:
     return [d.name for d in profiles_dir.iterdir() if d.is_dir()]
 
 
+def get_fb_username(profile_name: str) -> str:
+    """Get Facebook username for a profile"""
+    import json
+    settings_file = get_profile_dir(profile_name) / "settings.json"
+    if settings_file.exists():
+        try:
+            with open(settings_file, 'r') as f:
+                return json.load(f).get('fb_username', '')
+        except:
+            pass
+    return ''
+
+
+def set_fb_username(profile_name: str, fb_username: str):
+    """Set Facebook username for a profile"""
+    import json
+    settings_file = get_profile_dir(profile_name) / "settings.json"
+    settings = {}
+    if settings_file.exists():
+        try:
+            with open(settings_file, 'r') as f:
+                settings = json.load(f)
+        except:
+            pass
+    settings['fb_username'] = fb_username
+    with open(settings_file, 'w') as f:
+        json.dump(settings, f)
+
+
 class Config:
     """Application configuration manager"""
 
-    def __init__(self, config_file: str = "config/config.yaml", profile: str = None):
-        self.config_file = Path(config_file)
+    def __init__(self, config_file: str = None, profile: str = None):
+        # Use absolute path relative to the package directory
+        package_dir = Path(__file__).parent.parent.parent
+        if config_file is None:
+            self.config_file = package_dir / "config" / "config.yaml"
+        else:
+            self.config_file = Path(config_file)
         self.profile = profile or get_current_profile()
         self.config = self._load_config()
         self._load_env()
 
     def _load_env(self):
         """Load environment variables from .env file"""
-        env_file = Path("config/.env")
+        # Use absolute path relative to the package directory
+        package_dir = Path(__file__).parent.parent.parent
+        env_file = package_dir / "config" / ".env"
         if env_file.exists():
             load_dotenv(env_file)
 

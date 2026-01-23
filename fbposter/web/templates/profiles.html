@@ -52,10 +52,11 @@
         <thead class="bg-gray-50">
             <tr>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Profile Name</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">FB Username</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Groups</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Texts</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Jobs</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Session Status</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Session</th>
                 <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
             </tr>
         </thead>
@@ -68,29 +69,49 @@
                     <span class="ml-2 px-2 py-1 bg-green-100 text-green-800 text-xs rounded">Active</span>
                     {% endif %}
                 </td>
+                <td class="px-4 py-4">
+                    {% if p.fb_username %}
+                    <!-- View mode: show username with Edit button -->
+                    <div id="fb-view-{{ p.name }}" class="flex items-center space-x-2">
+                        <span class="text-gray-700 text-sm">{{ p.fb_username }}</span>
+                        <button type="button" onclick="toggleFbEdit('{{ p.name }}')" class="text-blue-600 hover:text-blue-800 text-xs">Edit</button>
+                    </div>
+                    <!-- Edit mode: hidden by default -->
+                    <form id="fb-edit-{{ p.name }}" method="post" action="/profiles/{{ p.name }}/fb-username" class="hidden flex items-center space-x-1">
+                        <input type="text" name="fb_username" value="{{ p.fb_username }}" class="w-32 px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500">
+                        <button type="submit" class="px-2 py-1 bg-blue-500 text-white text-xs rounded hover:bg-blue-600">Save</button>
+                        <button type="button" onclick="toggleFbEdit('{{ p.name }}')" class="text-gray-500 hover:text-gray-700 text-xs">Cancel</button>
+                    </form>
+                    {% else %}
+                    <!-- No username set: show input directly -->
+                    <form method="post" action="/profiles/{{ p.name }}/fb-username" class="flex items-center space-x-1">
+                        <input type="text" name="fb_username" placeholder="e.g., xiomara.dao" class="w-32 px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500">
+                        <button type="submit" class="px-2 py-1 bg-blue-500 text-white text-xs rounded hover:bg-blue-600">Save</button>
+                    </form>
+                    {% endif %}
+                </td>
                 <td class="px-6 py-4 text-gray-700">{{ p.groups }}</td>
                 <td class="px-6 py-4 text-gray-700">{{ p.texts }}</td>
                 <td class="px-6 py-4 text-gray-700">{{ p.jobs }}</td>
-                <td class="px-6 py-4">
+                <td class="px-4 py-4">
                     {% if p.has_chrome %}
                     <span class="px-2 py-1 bg-green-100 text-green-800 text-xs rounded">Logged In</span>
                     {% else %}
                     <span class="px-2 py-1 bg-yellow-100 text-yellow-800 text-xs rounded">Not Logged In</span>
                     {% endif %}
                 </td>
-                <td class="px-6 py-4 text-right space-x-2">
-                    <a href="/?profile={{ p.name }}" class="text-blue-600 hover:text-blue-800">Switch</a>
+                <td class="px-4 py-4 text-right space-x-1">
                     {% if not p.has_chrome %}
                     <form method="post" action="/profiles/{{ p.name }}/login" class="inline">
-                        <button type="submit" class="text-green-600 hover:text-green-800 ml-2 font-medium">Login to Facebook</button>
+                        <button type="submit" class="text-green-600 hover:text-green-800 text-sm font-medium">Login</button>
                     </form>
                     {% else %}
-                    <form method="post" action="/profiles/{{ p.name }}/clear-session" class="inline" onsubmit="return confirm('Clear session for {{ p.name }}? You will need to login again.')">
-                        <button type="submit" class="text-yellow-600 hover:text-yellow-800 ml-2">Clear Session</button>
+                    <form method="post" action="/profiles/{{ p.name }}/clear-session" class="inline" onsubmit="return confirm('Clear session for {{ p.name }}?')">
+                        <button type="submit" class="text-yellow-600 hover:text-yellow-800 text-sm">Clear</button>
                     </form>
                     {% endif %}
-                    <form method="post" action="/profiles/{{ p.name }}/delete" class="inline" onsubmit="return confirm('Delete profile {{ p.name }}? This will delete all its data!')">
-                        <button type="submit" class="text-red-600 hover:text-red-800 ml-2">Delete</button>
+                    <form method="post" action="/profiles/{{ p.name }}/delete" class="inline" onsubmit="return confirm('Delete profile {{ p.name }}?')">
+                        <button type="submit" class="text-red-600 hover:text-red-800 text-sm">Delete</button>
                     </form>
                 </td>
             </tr>
@@ -175,4 +196,21 @@
         </div>
     </div>
 </div>
+
+<script>
+function toggleFbEdit(profileName) {
+    const viewEl = document.getElementById('fb-view-' + profileName);
+    const editEl = document.getElementById('fb-edit-' + profileName);
+
+    if (viewEl.classList.contains('hidden')) {
+        viewEl.classList.remove('hidden');
+        editEl.classList.add('hidden');
+    } else {
+        viewEl.classList.add('hidden');
+        editEl.classList.remove('hidden');
+        // Focus the input
+        editEl.querySelector('input').focus();
+    }
+}
+</script>
 {% endblock %}

@@ -12,7 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
-from ..utils.config import get_config, set_profile, get_current_profile, list_profiles, get_profile_dir, get_profiles_dir
+from ..utils.config import get_config, set_profile, get_current_profile, list_profiles, get_profile_dir, get_profiles_dir, get_fb_username, set_fb_username
 from ..utils.telegram import get_notifier
 from ..data.storage import DataStore, LogStore
 from ..data.models import Group, Text, Job
@@ -20,6 +20,7 @@ import shutil
 import json
 import subprocess
 import threading
+import signal
 
 # Create FastAPI app
 app = FastAPI(
@@ -99,16 +100,22 @@ def mark_session_ready(profile: Optional[str] = None):
 
 
 def clear_session_marker(profile: Optional[str] = None):
-    """Clear a profile's session marker (for re-login)"""
+    """Clear a profile's session marker and Chrome profile (for re-login)"""
     if profile:
         profile_dir = get_profile_dir(profile)
     else:
         from pathlib import Path
         profile_dir = Path(__file__).parent.parent.parent
 
+    # Remove session marker
     marker_file = profile_dir / ".session_ready"
     if marker_file.exists():
         marker_file.unlink()
+
+    # Delete Chrome profile directory (contains saved cookies/session)
+    chrome_profile_dir = profile_dir / "chrome-profile"
+    if chrome_profile_dir.exists():
+        shutil.rmtree(chrome_profile_dir)
 
 
 def get_session_profile(request: Request) -> Optional[str]:
@@ -249,6 +256,7 @@ async def add_group(
     city: str = Form(...),
     url: str = Form(...),
     name: str = Form(""),
+    language: str = Form(""),
     _=Depends(require_auth)
 ):
     """Add a new group"""
@@ -261,7 +269,7 @@ async def add_group(
 
     data_store, _ = get_stores()
 
-    group = Group(city=city, url=url, name=name)
+    group = Group(city=city, url=url, name=name, language=language)
     data_store.add_group(group)
 
     return RedirectResponse(url="/groups", status_code=302)
@@ -383,10 +391,11 @@ async def jobs_page(request: Request, _=Depends(require_auth)):
     texts = data_store.load_texts()
     groups = data_store.load_groups()
 
-    # Get cities
-    cities = sorted(set(g.city for g in groups))
+    # Get city_keys (city-language combinations like "Paris-es", "Frankfurt")
+    # This allows selecting specific language variants of the same city
+    city_keys = sorted(set(g.city_key for g in groups))
 
-    # Enrich jobs with text names and cities list
+    # Enrich jobs with text names and city_keys list
     text_map = {t.id: t.name for t in texts}
     for job in jobs:
         job.text_name = text_map.get(job.text_id, "Unknown")
@@ -399,7 +408,7 @@ async def jobs_page(request: Request, _=Depends(require_auth)):
         "has_session": has_chrome_session(session_profile),
         "jobs": jobs,
         "texts": texts,
-        "cities": cities
+        "cities": city_keys  # Now passes city_keys (e.g., "Paris-es", "Frankfurt")
     })
 
 
@@ -472,22 +481,17 @@ async def delete_job(request: Request, job_id: str, _=Depends(require_auth)):
 async def run_job(
     request: Request,
     job_id: str,
-    headless: bool = Form(False),
     _=Depends(require_auth)
 ):
-    """Run a job in background"""
+    """Run a job in background with visible browser"""
     # Get profile from session
     current_profile = get_session_profile(request)
 
-    # Build the command
+    # Build the command - always run with visible browser
     cmd = ["fbposter"]
     if current_profile:
         cmd.extend(["--profile", current_profile])
-    cmd.extend(["run", job_id])
-
-    # Default is browser visible, only go headless if explicitly requested
-    if not headless:
-        cmd.append("--no-headless")
+    cmd.extend(["run", job_id, "--no-headless"])
 
     try:
         # Run the job in background (non-blocking)
@@ -498,13 +502,63 @@ async def run_job(
             start_new_session=True  # Detach from parent process
         )
 
-        if headless:
-            return RedirectResponse(url="/jobs?success=Job+started+in+headless+mode.+Check+Logs+for+progress.", status_code=302)
-        else:
-            return RedirectResponse(url="/jobs?success=Job+started+with+browser+visible.+Check+Logs+for+progress.", status_code=302)
+        return RedirectResponse(url="/jobs?success=Job+started.+Check+Logs+for+progress.", status_code=302)
 
     except Exception as e:
         return RedirectResponse(url=f"/jobs?error=Failed+to+start+job:+{str(e)[:50]}", status_code=302)
+
+
+@app.post("/jobs/run-multiple")
+async def run_multiple_jobs(
+    request: Request,
+    job_ids: str = Form(...),
+    _=Depends(require_auth)
+):
+    """Add multiple jobs to queue and start the queue processor"""
+    # Get profile from session
+    current_profile = get_session_profile(request)
+
+    # Parse job IDs
+    ids = [jid.strip() for jid in job_ids.split(',') if jid.strip()]
+
+    if not ids:
+        return RedirectResponse(url="/jobs?error=No+jobs+selected", status_code=302)
+
+    # Get stores
+    data_store, log_store = get_stores()
+
+    # Clean up any stale running jobs before adding new ones
+    # This prevents the queue processor from being blocked by orphaned jobs
+    log_store.reset_stale_running_jobs(timeout_minutes=10)
+
+    # Add jobs to queue
+    for job_id in ids:
+        job = data_store.get_job(job_id)
+        if job:
+            log_store.add_to_queue(job_id, job.name, current_profile)
+
+    # Start the queue processor in background
+    # Use the installed fbposter project directory
+    project_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+    profile_arg = f"--profile {current_profile}" if current_profile else ""
+    shell_cmd = f"cd {project_dir} && python3 -m fbposter.core.queue_processor {profile_arg}"
+
+    try:
+        subprocess.Popen(
+            ["bash", "-c", shell_cmd],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True
+        )
+
+        return RedirectResponse(
+            url=f"/logs?success={len(ids)}+jobs+added+to+queue.",
+            status_code=302
+        )
+
+    except Exception as e:
+        return RedirectResponse(url=f"/jobs?error=Failed+to+start+queue:+{str(e)[:50]}", status_code=302)
 
 
 @app.post("/profiles/{profile_name}/clear-session")
@@ -565,6 +619,7 @@ async def logs_page(request: Request, limit: int = 50, _=Depends(require_auth)):
     logs = log_store.get_recent_logs(limit=limit)
     job_runs = log_store.get_recent_job_runs(limit=20)
     running_jobs = log_store.get_running_jobs()
+    job_queue = log_store.get_queue()
 
     return templates.TemplateResponse("logs.html", {
         "request": request,
@@ -573,8 +628,95 @@ async def logs_page(request: Request, limit: int = 50, _=Depends(require_auth)):
         "logs": logs,
         "job_runs": job_runs,
         "running_jobs": running_jobs,
+        "job_queue": job_queue,
         "limit": limit
     })
+
+
+# ============== Queue Management Routes ==============
+
+@app.post("/queue/clear")
+async def clear_queue(request: Request, _=Depends(require_auth)):
+    """Clear all queued jobs (not running ones)"""
+    session_profile = get_session_profile(request)
+    if session_profile:
+        set_profile(session_profile)
+    else:
+        set_profile(None)
+
+    _, log_store = get_stores()
+    log_store.clear_all_queue()
+
+    return RedirectResponse(url="/logs?success=Queue+cleared", status_code=302)
+
+
+@app.post("/queue/reset-stuck")
+async def reset_stuck_queue_jobs(request: Request, _=Depends(require_auth)):
+    """Force reset any stuck 'running' jobs in the queue"""
+    session_profile = get_session_profile(request)
+    if session_profile:
+        set_profile(session_profile)
+    else:
+        set_profile(None)
+
+    _, log_store = get_stores()
+    # Reset all running jobs regardless of how long they've been running
+    count = log_store.reset_stale_running_jobs(timeout_minutes=0)
+
+    if count > 0:
+        return RedirectResponse(url=f"/logs?success=Reset+{count}+stuck+job(s)", status_code=302)
+    else:
+        return RedirectResponse(url="/logs?success=No+stuck+jobs+found", status_code=302)
+
+
+@app.post("/queue/{queue_id}/remove")
+async def remove_from_queue(request: Request, queue_id: int, _=Depends(require_auth)):
+    """Remove a specific job from the queue"""
+    session_profile = get_session_profile(request)
+    if session_profile:
+        set_profile(session_profile)
+    else:
+        set_profile(None)
+
+    _, log_store = get_stores()
+    # Mark as completed (effectively removing it from active queue)
+    log_store.complete_queue_job(queue_id, "Removed by user")
+
+    return RedirectResponse(url="/logs?success=Job+removed+from+queue", status_code=302)
+
+
+@app.post("/jobs/runs/{run_id}/kill")
+async def kill_job_run(request: Request, run_id: int, _=Depends(require_auth)):
+    """Kill a running job by its run ID"""
+    session_profile = get_session_profile(request)
+    if session_profile:
+        set_profile(session_profile)
+    else:
+        set_profile(None)
+
+    _, log_store = get_stores()
+
+    # Get the job run
+    job_run = log_store.get_job_run(run_id)
+    if not job_run:
+        return RedirectResponse(url="/logs?error=Job+run+not+found", status_code=302)
+
+    if job_run['status'] != 'running':
+        return RedirectResponse(url="/logs?error=Job+is+not+running", status_code=302)
+
+    pid = job_run.get('pid')
+    if pid:
+        try:
+            # Kill the process and all its children (process group)
+            os.killpg(os.getpgid(pid), signal.SIGTERM)
+        except (ProcessLookupError, PermissionError, OSError):
+            # Process may have already finished
+            pass
+
+    # Mark the job run as killed in the database
+    log_store.kill_job_run(run_id)
+
+    return RedirectResponse(url="/logs?success=Job+killed", status_code=302)
 
 
 # ============== API Routes ==============
@@ -631,7 +773,8 @@ async def profiles_page(request: Request, _=Depends(require_auth)):
             "groups": _count_json_items(groups_file),
             "texts": _count_json_items(texts_file),
             "jobs": _count_json_items(jobs_file),
-            "has_chrome": has_chrome_session(name)
+            "has_chrome": has_chrome_session(name),
+            "fb_username": get_fb_username(name)
         })
 
     return templates.TemplateResponse("profiles.html", {
@@ -640,6 +783,18 @@ async def profiles_page(request: Request, _=Depends(require_auth)):
         "profiles": list_profiles(),
         "profiles_data": profiles_data
     })
+
+
+@app.post("/profiles/{profile_name}/fb-username")
+async def update_fb_username(
+    request: Request,
+    profile_name: str,
+    fb_username: str = Form(...),
+    _=Depends(require_auth)
+):
+    """Update Facebook username for a profile"""
+    set_fb_username(profile_name, fb_username.strip())
+    return RedirectResponse(url="/profiles?success=Facebook+username+saved", status_code=302)
 
 
 @app.post("/profiles/create")

@@ -14,6 +14,7 @@ class Group:
     url: str = ""
     city: str = ""
     name: str = ""
+    language: str = ""  # e.g., "es", "en", "de" - empty means default/unspecified
     active: bool = True
     last_posted: Optional[datetime] = None
     notes: str = ""
@@ -25,6 +26,13 @@ class Group:
         if not self.city:
             raise ValueError("City label is required")
 
+    @property
+    def city_key(self) -> str:
+        """Returns city with language suffix for job filtering (e.g., 'Paris-es')"""
+        if self.language:
+            return f"{self.city}-{self.language}"
+        return self.city
+
     def to_dict(self) -> Dict:
         """Convert to dictionary for JSON serialization"""
         return {
@@ -32,6 +40,7 @@ class Group:
             "url": self.url,
             "city": self.city,
             "name": self.name,
+            "language": self.language,
             "active": self.active,
             "last_posted": self.last_posted.isoformat() if self.last_posted else None,
             "notes": self.notes,
@@ -42,6 +51,9 @@ class Group:
         """Create from dictionary"""
         if data.get("last_posted"):
             data["last_posted"] = datetime.fromisoformat(data["last_posted"])
+        # Handle old data without language field
+        if "language" not in data:
+            data["language"] = ""
         return cls(**data)
 
 

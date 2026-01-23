@@ -2,41 +2,92 @@
 
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Selenium](https://img.shields.io/badge/Selenium-4.x-green.svg)](https://www.selenium.dev/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-green.svg)](https://fastapi.tiangolo.com/)
+[![Selenium](https://img.shields.io/badge/Selenium-4.x-orange.svg)](https://www.selenium.dev/)
 
-A production-ready command-line tool for automating posts to Facebook groups. Built with Python, Selenium, and designed for reliability with features like automatic retries, rate limiting, and multi-account profile support.
+A production-grade automation platform for managing Facebook group posts at scale. Built with Python, Selenium, and FastAPI, featuring a modern web dashboard, job queue system, multi-account support, and real-time Telegram notifications.
+
+> **Portfolio Project** - This project demonstrates expertise in browser automation, async job processing, web application development, and building robust CLI tools with Python.
+
+---
+
+## Key Highlights
+
+| Feature | Description |
+|---------|-------------|
+| **Web Dashboard** | Modern responsive UI built with FastAPI + Tailwind CSS |
+| **Job Queue System** | Sequential job processing with real-time status tracking |
+| **Multi-Account Profiles** | Complete data isolation per Facebook account |
+| **Multi-Language Support** | Target groups by city AND language (e.g., Paris-ES, Paris-EN) |
+| **Telegram Integration** | Real-time notifications for job completions and errors |
+| **Process Management** | Kill running jobs, reset stuck queues, PID tracking |
+| **Session Persistence** | Chrome profile management for maintaining login sessions |
+| **Fault Tolerance** | Automatic retries, graceful error handling, orphan job cleanup |
+
+---
+
+## Tech Stack
+
+- **Backend**: Python 3.8+, FastAPI, SQLite
+- **Automation**: Selenium WebDriver, Chrome/Chromium
+- **Frontend**: Jinja2 Templates, Tailwind CSS
+- **Notifications**: Telegram Bot API (python-telegram-bot)
+- **CLI**: Click framework
+- **Scheduling**: systemd timers (Linux)
+
+---
 
 ## Features
 
+### Core Automation
 - **Headless Browser Automation** - Posts to Facebook groups using Selenium with Chrome
-- **Multi-Account Profiles** - Manage separate Facebook accounts with isolated data and login sessions
-- **Telegram Notifications** - Get notified on job completion, failures, and status updates
-- **Web Dashboard** - Visual management interface with authentication
-- **Flexible Job System** - Map any text template to any combination of city groups
 - **Smart Rate Limiting** - Configurable delays and hourly limits to avoid detection
 - **Automatic Retries** - Exponential backoff for transient failures
-- **systemd Integration** - Native Linux scheduling with timers
-- **SQLite Logging** - Complete post history with success/failure tracking
-- **City-Based Organization** - Organize groups by city for targeted campaigns
 - **Template Placeholders** - Use `{city}` in templates for dynamic content
+
+### Multi-Account & Organization
+- **Multi-Account Profiles** - Manage separate Facebook accounts with isolated data and login sessions
+- **City-Based Organization** - Organize groups by city for targeted campaigns
+- **Language Tags** - Distinguish groups in different languages for the same city (e.g., "Paris-es" vs "Paris-en")
+
+### Job Management
+- **Flexible Job System** - Map any text template to any combination of city/language groups
+- **Job Queue** - Queue multiple jobs to run sequentially with real-time progress tracking
+- **Kill Running Jobs** - Stop jobs mid-execution with process-level control
+- **Reset Stuck Jobs** - Recover from crashed/orphaned job states
+
+### Monitoring & Notifications
+- **Telegram Notifications** - Get notified on job completion, failures, and status updates
+- **SQLite Logging** - Complete post history with success/failure tracking
+- **Web Dashboard** - Visual management interface with authentication
+
+### Infrastructure
+- **systemd Integration** - Native Linux scheduling with timers
+- **Session Management** - Chrome profile persistence for maintaining Facebook login
+- **Post-Publish Navigation** - Automatic modal dismissal after posting (language-agnostic)
+
+---
 
 ## Table of Contents
 
 - [Installation](#installation)
 - [Quick Start](#quick-start)
+- [Web Dashboard](#web-dashboard)
 - [Usage Guide](#usage-guide)
   - [Managing Groups](#managing-groups)
   - [Managing Text Templates](#managing-text-templates)
   - [Managing Jobs](#managing-jobs)
   - [Running Jobs](#running-jobs)
   - [Using Profiles](#using-profiles)
+- [Job Queue System](#job-queue-system)
 - [Telegram Notifications](#telegram-notifications)
-- [Web Dashboard](#web-dashboard)
 - [Scheduling with systemd](#scheduling-with-systemd)
 - [Configuration](#configuration)
 - [Troubleshooting](#troubleshooting)
 - [Project Structure](#project-structure)
 - [License](#license)
+
+---
 
 ## Installation
 
@@ -50,10 +101,10 @@ A production-ready command-line tool for automating posts to Facebook groups. Bu
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/facebook-autoposter.git
+git clone https://github.com/yassbarona/facebook-autoposter.git
 cd facebook-autoposter
 
-# Create virtual environment (optional but recommended)
+# Create virtual environment (recommended)
 python3 -m venv venv
 source venv/bin/activate
 
@@ -77,7 +128,11 @@ cp config/.env.example config/.env
 # config/.env
 VIVAS_API_KEY=your_api_key_here
 FACEBOOK_USER_ID=your.facebook.username
+TELEGRAM_BOT_TOKEN=your_telegram_bot_token
+TELEGRAM_CHAT_ID=your_telegram_chat_id
 ```
+
+---
 
 ## Quick Start
 
@@ -101,6 +156,57 @@ fbposter run <job-id> --no-headless
 fbposter run <job-id>
 ```
 
+---
+
+## Web Dashboard
+
+A modern web interface for managing your Facebook Auto-Poster. Built with FastAPI and Tailwind CSS.
+
+### Starting the Dashboard
+
+```bash
+# Start the dashboard
+fbposter web start
+
+# Start on a specific port
+fbposter web start --port 8080
+```
+
+### Access
+
+1. Start the server: `fbposter web start`
+2. Open in browser: `http://localhost:8000`
+3. Login with password (default: `admin`)
+
+### Dashboard Features
+
+| Page | Features |
+|------|----------|
+| **Dashboard** | Overview stats, city breakdown, recent activity |
+| **Groups** | Add/remove groups, enable/disable, filter by city, set language tags |
+| **Texts** | Create and manage post templates |
+| **Jobs** | Create jobs, select multiple jobs, run queue |
+| **Logs** | View job runs, kill running jobs, reset stuck jobs, see queue status |
+| **Profiles** | Manage accounts, set FB username, login/logout sessions |
+
+### Multi-Job Queue
+
+From the Jobs page:
+1. Check multiple jobs using the checkboxes
+2. Click "Run Selected (N)"
+3. Jobs are added to a queue and run sequentially
+4. Monitor progress in the Logs page
+
+### Configuration
+
+```bash
+# config/.env
+DASHBOARD_PASSWORD=your_secure_password
+DASHBOARD_SECRET_KEY=your_random_secret_key
+```
+
+---
+
 ## Usage Guide
 
 ### Managing Groups
@@ -123,10 +229,19 @@ fbposter groups add --city Frankfurt --url "https://www.facebook.com/groups/1234
 # Remove a group
 fbposter groups remove <group-id>
 
-# Disable/enable a group (disabled groups won't receive posts)
+# Disable/enable a group
 fbposter groups disable <group-id>
 fbposter groups enable <group-id>
 ```
+
+#### Language Tags (Web Dashboard)
+
+When adding groups via the web dashboard, you can assign a language tag (es, en, de, fr, pt, it) to distinguish groups in different languages for the same city:
+
+- Groups in Paris with Spanish content → "Paris" + language "es" → appears as "Paris-es"
+- Groups in Paris with English content → "Paris" + language "en" → appears as "Paris-en"
+
+When creating jobs, you can select specific city-language combinations to target.
 
 ### Managing Text Templates
 
@@ -141,9 +256,6 @@ fbposter texts show <text-id>
 
 # Create a new template (interactive)
 fbposter texts add
-
-# Edit a template
-fbposter texts edit <text-id>
 
 # Delete a template
 fbposter texts remove <text-id>
@@ -204,19 +316,9 @@ fbposter profiles list
 # Create a new empty profile
 fbposter profiles create english
 
-# Create a profile from existing data
-fbposter profiles init spanish --from-default
-
 # Use a profile with any command
 fbposter --profile spanish status
 fbposter -p english groups list
-fbposter --profile spanish run <job-id>
-
-# Show profile details
-fbposter profiles show spanish
-
-# Copy a profile
-fbposter profiles copy spanish spanish-backup
 
 # Delete a profile
 fbposter profiles delete english
@@ -226,6 +328,38 @@ Each profile has its own:
 - Groups, texts, and jobs
 - Chrome profile (login session)
 - Posting logs
+- Facebook username (for post-publish navigation)
+
+---
+
+## Job Queue System
+
+The job queue allows running multiple jobs sequentially, with real-time tracking.
+
+### How It Works
+
+1. **Add to Queue**: Select jobs from the web dashboard and click "Run Selected"
+2. **Sequential Processing**: Jobs run one at a time to avoid conflicts
+3. **Status Tracking**: Monitor progress in the Logs page (queued → running → completed/failed)
+4. **Fault Tolerance**: Stuck jobs are automatically detected and can be reset
+
+### Queue Management (Web Dashboard)
+
+| Action | Description |
+|--------|-------------|
+| **Run Selected** | Add checked jobs to queue |
+| **Kill Job** | Stop a running job immediately |
+| **Reset Stuck Jobs** | Clear jobs stuck in "running" state |
+| **Clear Queue** | Remove all queued jobs |
+
+### Automatic Cleanup
+
+The queue processor automatically:
+- Resets jobs stuck in "running" state for >30 minutes
+- Cleans up orphaned job runs from crashed processes
+- Tracks process PIDs for reliable job termination
+
+---
 
 ## Telegram Notifications
 
@@ -235,7 +369,7 @@ Get notified on Telegram when jobs complete, fail, or encounter errors.
 
 1. **Create a bot** - Message [@BotFather](https://t.me/BotFather) on Telegram, send `/newbot`, and copy the token
 
-2. **Get your Chat ID** - Message [@userinfobot](https://t.me/userinfobot) to get your chat ID
+2. **Get your Chat ID** - Message [@userinfobot](https://t.me/userinfobot) to get your chat ID (or use a group chat ID for team notifications)
 
 3. **Configure** - Add to `config/.env`:
 ```bash
@@ -252,88 +386,20 @@ telegram:
   notify_on_start: false
 ```
 
-5. **Start the bot** - Message your bot on Telegram (press Start)
-
-6. **Test** - Run:
+5. **Test** - Run:
 ```bash
 fbposter telegram test
 ```
 
-### Telegram Commands
+### Notification Types
 
-```bash
-# Test bot connection
-fbposter telegram test
+| Event | Description |
+|-------|-------------|
+| **Job Complete** | Success/failure counts, success rate, error summaries |
+| **Critical Error** | Authentication failures, login errors, job crashes |
+| **Status Report** | On-demand system status via `fbposter telegram status` |
 
-# Send status report to Telegram
-fbposter telegram status
-
-# Show configuration info
-fbposter telegram info
-```
-
-### What You'll Receive
-
-- **Job Completion** - Success/failure counts, success rate, error summaries
-- **Errors** - Authentication failures, critical errors
-- **Status Reports** - On-demand system status via `fbposter telegram status`
-
-## Web Dashboard
-
-A visual web interface for managing your Facebook Auto-Poster. Built with FastAPI and Tailwind CSS.
-
-### Starting the Dashboard
-
-```bash
-# Start the dashboard
-fbposter web start
-
-# Start on a specific port
-fbposter web start --port 8080
-
-# Start with auto-reload (for development)
-fbposter web start --reload
-
-# Show dashboard configuration info
-fbposter web info
-```
-
-### Access the Dashboard
-
-1. Start the server: `fbposter web start`
-2. Open in browser: `http://localhost:8000`
-3. Login with password (default: `admin`)
-
-### Dashboard Features
-
-- **Dashboard Home** - Overview of groups, texts, jobs, and posting statistics
-- **Groups Management** - View, add, enable/disable, and delete Facebook groups
-- **Text Templates** - View and manage post templates
-- **Jobs Management** - View job configurations, enable/disable jobs
-- **Logs Viewer** - Browse recent posting history with status filtering
-- **Profile Switching** - Switch between profiles from the navigation bar
-
-### Configuration
-
-Set environment variables to customize the dashboard:
-
-```bash
-# config/.env
-DASHBOARD_PASSWORD=your_secure_password
-DASHBOARD_SECRET_KEY=your_random_secret_key
-```
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `DASHBOARD_PASSWORD` | Login password | `admin` |
-| `DASHBOARD_SECRET_KEY` | Session encryption key | (insecure default) |
-
-### Security Notes
-
-- Always change the default password in production
-- Set a strong `DASHBOARD_SECRET_KEY` for session security
-- The dashboard binds to `0.0.0.0` by default - use a firewall or reverse proxy in production
-- Consider using HTTPS via a reverse proxy like nginx or Traefik
+---
 
 ## Scheduling with systemd
 
@@ -369,17 +435,11 @@ sudo systemctl start fbposter@morning.timer
 | Schedule | OnCalendar Value |
 |----------|------------------|
 | Daily at 8am | `*-*-* 08:00:00` |
-| Daily at 8pm | `*-*-* 20:00:00` |
 | Twice daily | `*-*-* 08,20:00:00` |
 | Every 6 hours | `*-*-* 00,06,12,18:00:00` |
 | Weekdays at 9am | `Mon..Fri *-*-* 09:00:00` |
 
-### View Timer Status
-
-```bash
-systemctl list-timers fbposter*
-journalctl -u fbposter@morning --since today
-```
+---
 
 ## Configuration
 
@@ -397,11 +457,15 @@ facebook:
   post_delay_max: 15     # Maximum seconds between posts
   max_posts_per_hour: 20 # Rate limiting
 
+telegram:
+  enabled: true
+  notify_on_success: true
+  notify_on_failure: true
+  notify_on_start: false
+
 logging:
   level: "INFO"
   file: "data/logs/fbposter.log"
-  max_bytes: 10485760    # 10MB
-  backup_count: 5
 ```
 
 ### Environment Variables
@@ -410,6 +474,12 @@ logging:
 |----------|-------------|
 | `VIVAS_API_KEY` | API key for webhook notifications |
 | `FACEBOOK_USER_ID` | Facebook username for verification |
+| `TELEGRAM_BOT_TOKEN` | Telegram bot token |
+| `TELEGRAM_CHAT_ID` | Telegram chat/group ID for notifications |
+| `DASHBOARD_PASSWORD` | Web dashboard login password |
+| `DASHBOARD_SECRET_KEY` | Session encryption key |
+
+---
 
 ## Troubleshooting
 
@@ -427,11 +497,9 @@ Facebook login session expired:
 2. Log in to Facebook when prompted
 3. Close browser and run normally
 
-### Posts Not Appearing
+### Jobs Stuck in Queue
 
-- Group may require admin approval (check pending posts)
-- Post may have been flagged by Facebook
-- Check rate limiting settings
+Use the "Reset Stuck Jobs" button in the Logs page, or wait for automatic cleanup (30 min timeout).
 
 ### Chrome Won't Start
 
@@ -443,42 +511,45 @@ pkill -9 chrome
 fbposter run <job-id>
 ```
 
+---
+
 ## Project Structure
 
 ```
 facebook-autoposter/
 ├── fbposter/
-│   ├── cli/           # CLI commands
-│   │   ├── main.py    # Entry point
-│   │   ├── groups.py  # Group management
-│   │   ├── texts.py   # Text templates
-│   │   ├── jobs.py    # Job management
-│   │   ├── profiles.py # Profile management
-│   │   ├── telegram.py # Telegram commands
-│   │   └── web.py     # Web dashboard commands
+│   ├── cli/                    # CLI commands (Click)
+│   │   ├── main.py             # Entry point
+│   │   ├── groups.py           # Group management
+│   │   ├── texts.py            # Text templates
+│   │   ├── jobs.py             # Job management
+│   │   ├── profiles.py         # Profile management
+│   │   ├── telegram.py         # Telegram commands
+│   │   └── web.py              # Web dashboard commands
 │   ├── core/
-│   │   ├── browser.py # Selenium automation
-│   │   └── poster.py  # Facebook posting logic
+│   │   ├── browser.py          # Selenium automation
+│   │   ├── poster.py           # Facebook posting logic
+│   │   └── queue_processor.py  # Job queue processing
 │   ├── data/
-│   │   ├── models.py  # Data models
-│   │   └── storage.py # JSON/SQLite storage
+│   │   ├── models.py           # Data models (Group, Text, Job)
+│   │   └── storage.py          # JSON/SQLite storage layer
 │   ├── utils/
-│   │   ├── config.py  # Configuration
-│   │   ├── telegram.py # Telegram notifications
-│   │   └── logger.py  # Logging
-│   └── web/           # Web dashboard
-│       ├── app.py     # FastAPI application
-│       └── templates/ # HTML templates
+│   │   ├── config.py           # Configuration management
+│   │   ├── telegram.py         # Telegram notifications
+│   │   └── logger.py           # Logging utilities
+│   └── web/
+│       ├── app.py              # FastAPI application
+│       └── templates/          # Jinja2 HTML templates
 ├── config/
-│   ├── config.yaml        # Main configuration
-│   ├── config.example.yaml
-│   └── .env.example
-├── data/                  # Default data directory
-├── profiles/              # Multi-account profiles
-├── systemd/               # systemd service templates
-├── setup.py
+│   ├── config.yaml             # Main configuration
+│   └── .env                    # Environment variables
+├── profiles/                   # Multi-account profile data
+├── systemd/                    # systemd service templates
+├── setup.py                    # Package installation
 └── README.md
 ```
+
+---
 
 ## CLI Reference
 
@@ -496,9 +567,9 @@ facebook-autoposter/
 | `fbposter profiles list` | List available profiles |
 | `fbposter -p <name> <cmd>` | Run command with specific profile |
 | `fbposter telegram test` | Test Telegram bot connection |
-| `fbposter telegram status` | Send status to Telegram |
 | `fbposter web start` | Start the web dashboard |
-| `fbposter web info` | Show dashboard configuration |
+
+---
 
 ## License
 
@@ -508,10 +579,21 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 This tool is for authorized automation only. Ensure compliance with Facebook's Terms of Service. The author is not responsible for account restrictions or violations.
 
-## Acknowledgments
+---
 
-This project was developed with the assistance of [Claude Code](https://claude.ai/claude-code), Anthropic's AI-powered development tool. Claude Code helped accelerate development by providing code suggestions, debugging assistance, and documentation support - enabling faster iteration while I maintained full creative and architectural control over the project.
+## Author
+
+**Yass Barona**
+Full-Stack Developer
+
+- GitHub: [@yassbarona](https://github.com/yassbarona)
 
 ---
 
-**Built with Python, Selenium, and Click**
+## Acknowledgments
+
+This project was developed with the assistance of [Claude Code](https://claude.ai/claude-code), Anthropic's AI-powered development tool.
+
+---
+
+*Built with Python, FastAPI, Selenium, and Tailwind CSS*

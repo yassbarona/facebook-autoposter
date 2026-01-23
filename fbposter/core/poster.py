@@ -2,6 +2,7 @@
 Facebook posting logic with retry mechanism and rate limiting
 Uses the exact working code pattern from the original script
 """
+import os
 import time
 import random
 import requests
@@ -18,7 +19,7 @@ from tenacity import (
 from ..data.models import Group, Text, Job, PostLog
 from ..data.storage import LogStore
 from ..utils.logger import get_logger
-from ..utils.config import get_config, get_current_profile, get_profile_dir
+from ..utils.config import get_config, get_current_profile, get_profile_dir, get_fb_username
 from ..utils.telegram import notify_job_start, notify_job_complete, notify_error
 from .browser import Browser, BrowserError, ElementNotFoundError, AuthenticationError
 from pathlib import Path
@@ -97,6 +98,27 @@ class FacebookPoster:
         """JavaScript click fallback when regular click is blocked"""
         self.browser.driver.execute_script("arguments[0].click();", element)
 
+    def _clear_screen_after_post(self):
+        """Navigate to user's profile page to clear any modals.
+
+        After posting, Facebook sometimes shows modals (surveys, questions, etc.)
+        in various languages. Instead of trying to dismiss them, we simply
+        navigate away to the user's profile page, which clears any modal.
+        """
+        profile = get_current_profile()
+        fb_username = get_fb_username(profile) if profile else ''
+
+        if fb_username:
+            profile_url = f"https://www.facebook.com/{fb_username}"
+            logger.debug(f"Navigating to profile page to clear screen: {profile_url}")
+            try:
+                self.browser.driver.get(profile_url)
+                time.sleep(3)
+            except Exception as e:
+                logger.warning(f"Could not navigate to profile page: {e}")
+        else:
+            logger.debug("No fb_username configured, skipping screen clear")
+
     @retry(
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=4, max=60),
@@ -163,6 +185,9 @@ class FacebookPoster:
                 logger.debug("Using JS click for Publicar")
                 self._js_click(post_button)
             time.sleep(5)
+
+            # 5. Clear screen by navigating to profile page (handles any modals)
+            self._clear_screen_after_post()
 
             # === END EXACT WORKING CODE ===
 
@@ -373,6 +398,16 @@ def run_job(job: Job, browser: Browser, data_store, dry_run: bool = False) -> Di
     profile = get_current_profile()
     logger.info(f"Running job: {job.name} (profile: {profile or 'default'})")
 
+    # ALWAYS create job_run entry FIRST - this ensures we track every job attempt
+    log_store = LogStore()
+    run_id = log_store.start_job_run(job.id, job.name, profile, 0)  # 0 groups initially
+    logger.info(f"Started job run #{run_id}")
+
+    # Store current process PID immediately for potential kill operation
+    current_pid = os.getpid()
+    log_store.update_job_run_pid(run_id, current_pid)
+    logger.debug(f"Stored PID {current_pid} for job run #{run_id}")
+
     # Log chrome profile directory for debugging
     config = get_config()
     chrome_dir = config.get_chrome_profile_dir()
@@ -383,6 +418,7 @@ def run_job(job: Job, browser: Browser, data_store, dry_run: bool = False) -> Di
     if not text:
         logger.error(f"Text template not found: {job.text_id}")
         notify_error(f"Text template not found: {job.text_id}", job.name, profile)
+        log_store.complete_job_run(run_id, 0, 0, "Text template not found")
         return {"success": False, "error": "Text template not found"}
 
     # Get groups for this job
@@ -390,41 +426,15 @@ def run_job(job: Job, browser: Browser, data_store, dry_run: bool = False) -> Di
     if not groups:
         logger.error(f"No groups found for job: {job.name}")
         notify_error(f"No groups found for job", job.name, profile)
+        log_store.complete_job_run(run_id, 0, 0, "No groups found")
         return {"success": False, "error": "No groups found"}
 
     logger.info(f"Found {len(groups)} groups to post to")
 
-    # Record job run start
-    log_store = LogStore()
-    run_id = log_store.start_job_run(job.id, job.name, profile, len(groups))
-    logger.info(f"Started job run #{run_id}")
+    # Update job_run with the actual group count
+    log_store.update_job_run_groups(run_id, len(groups))
 
-    # Send Telegram notification for job start
-    if not dry_run:
-        notify_job_start(job.name, len(groups), profile)
-
-    # Try to restore session from saved cookies
-    try:
-        logger.info("Attempting to restore session from saved cookies...")
-        browser.load_cookies()
-        time.sleep(2)
-    except Exception as e:
-        logger.warning(f"Could not load cookies: {e}")
-
-    # Verify login
-    try:
-        browser.navigate_to("https://www.facebook.com")
-        browser.verify_login()
-    except Exception as e:
-        logger.error(f"Login verification failed: {e}")
-        log_store.complete_job_run(run_id, 0, 0, f"Login failed: {e}")
-        raise
-
-    # Mark session as ready after successful login verification
-    mark_session_ready(profile)
-
-    # Post to each group
-    poster = FacebookPoster(browser)
+    # Initialize results tracking
     results = {
         "total": len(groups),
         "successful": 0,
@@ -432,53 +442,98 @@ def run_job(job: Job, browser: Browser, data_store, dry_run: bool = False) -> Di
         "skipped": 0,
         "errors": []
     }
+    job_completed = False
 
-    for i, group in enumerate(groups, 1):
-        logger.info(f"Processing group {i}/{len(groups)}: {group.city}")
+    try:
+        # Send Telegram notification for job start
+        if not dry_run:
+            notify_job_start(job.name, len(groups), profile)
 
-        if dry_run:
-            logger.info(f"[DRY RUN] Would post to: {group.url}")
-            results["skipped"] += 1
-            continue
-
+        # Try to restore session from saved cookies
         try:
-            success = poster.post_to_group(group, text, job_id=job.id)
-            if success:
-                results["successful"] += 1
-                group.last_posted = datetime.now()
-                data_store.save_groups(data_store.load_groups())
-            else:
-                results["failed"] += 1
-
-        except AuthenticationError as e:
-            logger.error(f"Authentication failed: {e}")
-            results["errors"].append(f"Authentication error: {e}")
-            notify_error(f"Authentication failed: {e}", job.name, profile)
-            break
-
+            logger.info("Attempting to restore session from saved cookies...")
+            browser.load_cookies()
+            time.sleep(2)
         except Exception as e:
-            logger.error(f"Failed to post to {group.url}: {e}")
-            results["failed"] += 1
-            results["errors"].append(f"{group.url}: {str(e)}")
+            logger.warning(f"Could not load cookies: {e}")
 
-    # Update job last run time
-    job.last_run = datetime.now()
-    data_store.update_job(job)
+        # Verify login
+        try:
+            browser.navigate_to("https://www.facebook.com")
+            browser.verify_login()
+        except Exception as e:
+            logger.error(f"Login verification failed: {e}")
+            results["errors"].append(f"Login failed: {e}")
+            notify_error(f"Login verification failed: {e}", job.name, profile)
+            raise
 
-    logger.info(f"Job completed: {results['successful']} successful, {results['failed']} failed")
-
-    # Record job run completion
-    error_msg = "; ".join(results["errors"][:3]) if results["errors"] else None
-    log_store.complete_job_run(run_id, results["successful"], results["failed"], error_msg)
-    logger.info(f"Job run #{run_id} completed")
-
-    # Mark session as ready if at least one post succeeded
-    if results["successful"] > 0:
+        # Mark session as ready after successful login verification
         mark_session_ready(profile)
-        logger.info("Session marked as ready for future headless runs")
 
-    # Send Telegram notification for job completion
-    if not dry_run:
-        notify_job_complete(job.name, results, profile)
+        # Post to each group
+        poster = FacebookPoster(browser)
+
+        for i, group in enumerate(groups, 1):
+            logger.info(f"Processing group {i}/{len(groups)}: {group.city}")
+
+            if dry_run:
+                logger.info(f"[DRY RUN] Would post to: {group.url}")
+                results["skipped"] += 1
+                continue
+
+            try:
+                success = poster.post_to_group(group, text, job_id=job.id)
+                if success:
+                    results["successful"] += 1
+                    group.last_posted = datetime.now()
+                    data_store.save_groups(data_store.load_groups())
+                else:
+                    results["failed"] += 1
+
+            except AuthenticationError as e:
+                logger.error(f"Authentication failed: {e}")
+                results["errors"].append(f"Authentication error: {e}")
+                notify_error(f"Authentication failed: {e}", job.name, profile)
+                break
+
+            except Exception as e:
+                logger.error(f"Failed to post to {group.url}: {e}")
+                results["failed"] += 1
+                results["errors"].append(f"{group.url}: {str(e)}")
+
+        job_completed = True
+
+    except Exception as e:
+        logger.error(f"Job execution error: {e}")
+        results["errors"].append(str(e))
+        # Notify critical error that killed the job (if not already notified)
+        if "Login" not in str(e):  # Avoid duplicate notification for login errors
+            notify_error(f"Job failed: {e}", job.name, profile)
+
+    finally:
+        # ALWAYS record job completion - this ensures we never have orphaned job_runs
+        try:
+            # Update job last run time
+            job.last_run = datetime.now()
+            data_store.update_job(job)
+        except Exception as e:
+            logger.warning(f"Could not update job last_run: {e}")
+
+        logger.info(f"Job completed: {results['successful']} successful, {results['failed']} failed")
+
+        # Record job run completion
+        error_msg = "; ".join(results["errors"][:3]) if results["errors"] else None
+        status_msg = None if job_completed and not error_msg else error_msg
+        log_store.complete_job_run(run_id, results["successful"], results["failed"], status_msg)
+        logger.info(f"Job run #{run_id} completed")
+
+        # Mark session as ready if at least one post succeeded
+        if results["successful"] > 0:
+            mark_session_ready(profile)
+            logger.info("Session marked as ready for future headless runs")
+
+        # Send Telegram notification for job completion
+        if not dry_run:
+            notify_job_complete(job.name, results, profile)
 
     return results

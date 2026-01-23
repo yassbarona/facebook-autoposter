@@ -104,10 +104,10 @@ class DataStore:
         all_groups = self.load_groups()
         filters = job.group_filters
 
-        # Filter by cities
-        cities = filters.get('cities', [])
-        if cities:
-            all_groups = [g for g in all_groups if g.city in cities]
+        # Filter by city_keys (city-language combinations like "Paris-es", "Frankfurt")
+        city_keys = filters.get('cities', [])
+        if city_keys:
+            all_groups = [g for g in all_groups if g.city_key in city_keys]
 
         # Filter by active status
         if filters.get('active_only', True):
@@ -264,11 +264,36 @@ class LogStore:
                 total_groups INTEGER DEFAULT 0,
                 successful INTEGER DEFAULT 0,
                 failed INTEGER DEFAULT 0,
-                error_message TEXT
+                error_message TEXT,
+                pid INTEGER
             )
         ''')
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_job_runs_status ON job_runs(status)')
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_job_runs_started ON job_runs(started_at)')
+
+        # Add pid column if it doesn't exist (for existing databases)
+        try:
+            cursor.execute('ALTER TABLE job_runs ADD COLUMN pid INTEGER')
+        except sqlite3.OperationalError:
+            pass  # Column already exists
+
+        # Job queue table for tracking queued jobs
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS job_queue (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                job_id TEXT NOT NULL,
+                job_name TEXT,
+                profile TEXT,
+                status TEXT DEFAULT 'queued',
+                position INTEGER,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                started_at DATETIME,
+                completed_at DATETIME,
+                error_message TEXT
+            )
+        ''')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_job_queue_status ON job_queue(status)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_job_queue_position ON job_queue(position)')
 
         conn.commit()
         conn.close()
@@ -422,3 +447,195 @@ class LogStore:
         rows = cursor.fetchall()
         conn.close()
         return [dict(row) for row in rows]
+
+    def update_job_run_pid(self, run_id: int, pid: int):
+        """Update the PID of a running job"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        cursor.execute('''
+            UPDATE job_runs SET pid = ? WHERE id = ?
+        ''', (pid, run_id))
+
+        conn.commit()
+        conn.close()
+
+    def update_job_run_groups(self, run_id: int, total_groups: int):
+        """Update the total groups count for a job run"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        cursor.execute('''
+            UPDATE job_runs SET total_groups = ? WHERE id = ?
+        ''', (total_groups, run_id))
+
+        conn.commit()
+        conn.close()
+
+    def get_job_run(self, run_id: int) -> Dict:
+        """Get a specific job run by ID"""
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+
+        cursor.execute('SELECT * FROM job_runs WHERE id = ?', (run_id,))
+        row = cursor.fetchone()
+        conn.close()
+        return dict(row) if row else None
+
+    def kill_job_run(self, run_id: int):
+        """Mark a job run as killed"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        cursor.execute('''
+            UPDATE job_runs
+            SET status = 'killed', completed_at = CURRENT_TIMESTAMP, error_message = 'Killed by user'
+            WHERE id = ?
+        ''', (run_id,))
+
+        conn.commit()
+        conn.close()
+
+    # ============== Job Queue Methods ==============
+
+    def add_to_queue(self, job_id: str, job_name: str, profile: str = None) -> int:
+        """Add a job to the queue, returns the queue entry ID"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        # Get the next position in queue
+        cursor.execute('SELECT COALESCE(MAX(position), 0) + 1 FROM job_queue WHERE status IN ("queued", "running")')
+        position = cursor.fetchone()[0]
+
+        cursor.execute('''
+            INSERT INTO job_queue (job_id, job_name, profile, status, position)
+            VALUES (?, ?, ?, 'queued', ?)
+        ''', (job_id, job_name, profile, position))
+
+        queue_id = cursor.lastrowid
+        conn.commit()
+        conn.close()
+        return queue_id
+
+    def get_queue(self) -> List[Dict]:
+        """Get all queued and running jobs in the queue"""
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+
+        cursor.execute('''
+            SELECT * FROM job_queue
+            WHERE status IN ('queued', 'running')
+            ORDER BY position ASC
+        ''')
+
+        rows = cursor.fetchall()
+        conn.close()
+        return [dict(row) for row in rows]
+
+    def get_next_queued_job(self) -> Dict:
+        """Get the next job in queue that's waiting to run"""
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+
+        cursor.execute('''
+            SELECT * FROM job_queue
+            WHERE status = 'queued'
+            ORDER BY position ASC
+            LIMIT 1
+        ''')
+
+        row = cursor.fetchone()
+        conn.close()
+        return dict(row) if row else None
+
+    def is_queue_running(self) -> bool:
+        """Check if any job in the queue is currently running"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        cursor.execute('SELECT COUNT(*) FROM job_queue WHERE status = "running"')
+        count = cursor.fetchone()[0]
+        conn.close()
+        return count > 0
+
+    def start_queue_job(self, queue_id: int):
+        """Mark a queued job as running"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        cursor.execute('''
+            UPDATE job_queue
+            SET status = 'running', started_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        ''', (queue_id,))
+
+        conn.commit()
+        conn.close()
+
+    def complete_queue_job(self, queue_id: int, error_message: str = None):
+        """Mark a queued job as completed or failed"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        status = 'failed' if error_message else 'completed'
+        cursor.execute('''
+            UPDATE job_queue
+            SET status = ?, completed_at = CURRENT_TIMESTAMP, error_message = ?
+            WHERE id = ?
+        ''', (status, error_message, queue_id))
+
+        conn.commit()
+        conn.close()
+
+    def clear_completed_queue(self):
+        """Remove completed/failed jobs from queue"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        cursor.execute('DELETE FROM job_queue WHERE status IN ("completed", "failed")')
+
+        conn.commit()
+        conn.close()
+
+    def clear_all_queue(self):
+        """Clear the entire queue (use with caution)"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        cursor.execute('DELETE FROM job_queue')
+
+        conn.commit()
+        conn.close()
+
+    def reset_stale_running_jobs(self, timeout_minutes: int = 30) -> int:
+        """Reset queue jobs that have been 'running' for too long.
+
+        This is called when the queue processor starts to clean up orphaned
+        jobs from previous crashed/killed processors.
+
+        Args:
+            timeout_minutes: Jobs running longer than this are considered stale
+
+        Returns the number of jobs that were reset.
+        """
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        # Mark stale running jobs as failed (they were interrupted or hung)
+        # Only reset jobs that have been running for longer than the timeout
+        cursor.execute('''
+            UPDATE job_queue
+            SET status = 'failed',
+                completed_at = CURRENT_TIMESTAMP,
+                error_message = 'Timed out or interrupted'
+            WHERE status = 'running'
+            AND started_at < datetime('now', '-' || ? || ' minutes')
+        ''', (timeout_minutes,))
+
+        affected = cursor.rowcount
+        conn.commit()
+        conn.close()
+        return affected
